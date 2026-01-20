@@ -18,7 +18,6 @@ class FavoritesScreen extends StatelessWidget {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          // زر حذف الكل (إضافة جديدة لتطابق التصميم)
           IconButton(
             icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
             onPressed: () {
@@ -36,8 +35,6 @@ class FavoritesScreen extends StatelessWidget {
                     TextButton(
                       child: const Text("حذف", style: TextStyle(color: Colors.redAccent)),
                       onPressed: () {
-                        // ملاحظة: تأكد من إضافة دالة clearFavorites في FavoritesProvider
-                        // إذا لم تكن موجودة، سأكتبها لك في الأسفل
                         Provider.of<FavoritesProvider>(context, listen: false).clearFavorites();
                         Navigator.pop(ctx);
                       },
@@ -72,10 +69,9 @@ class FavoritesScreen extends StatelessWidget {
               final item = provider.favorites[index];
 
               return Dismissible(
-                key: Key(item.link),
-                direction: DismissDirection.horizontal, // السحب في الاتجاهين
+                key: Key(item.id.toString()), // ID as String Key
+                direction: DismissDirection.horizontal,
 
-                // خلفية السحب (يمين)
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
@@ -86,7 +82,6 @@ class FavoritesScreen extends StatelessWidget {
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
 
-                // خلفية السحب (يسار)
                 secondaryBackground: Container(
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.only(left: 20),
@@ -98,12 +93,12 @@ class FavoritesScreen extends StatelessWidget {
                 ),
 
                 onDismissed: (direction) {
-                  provider.removeFavorite(item.link);
+                  provider.removeFavorite(item.id); // Remove by ID
                 },
 
                 child: GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (c) => DetailsScreen(url: item.link)));
+                    Navigator.push(context, MaterialPageRoute(builder: (c) => DetailsScreen(id: item.id))); // Navigate by ID
                   },
                   child: Container(
                     height: 120,
@@ -113,14 +108,13 @@ class FavoritesScreen extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        // صورة العرض
                         ClipRRect(
                           borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(12),
                             bottomRight: Radius.circular(12),
                           ),
                           child: AspectRatio(
-                            aspectRatio: 16 / 9, // تحافظ على نسبة العرض للارتفاع
+                            aspectRatio: 16 / 9,
                             child: CachedNetworkImage(
                               imageUrl: item.image,
                               fit: BoxFit.cover,
@@ -130,7 +124,6 @@ class FavoritesScreen extends StatelessWidget {
                           ),
                         ),
 
-                        // النصوص والمعلومات
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
@@ -149,7 +142,6 @@ class FavoritesScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                // زر مشاهدة صغير أو نص توضيحي
                                 Row(
                                   children: [
                                     Container(
@@ -169,8 +161,6 @@ class FavoritesScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-
-                        // سهم صغير للتوجيه (اختياري)
                         const Padding(
                           padding: EdgeInsets.only(left: 10),
                           child: Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white24),

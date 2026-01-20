@@ -3,40 +3,46 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/details_provider.dart';
 import '../models/details_model.dart';
-import '../providers/favorites_provider.dart'; // تأكد إن المسار صح
+import '../providers/favorites_provider.dart';
 
 class DetailsScreen extends StatelessWidget {
-  final String url;
-  const DetailsScreen({super.key, required this.url});
+  final int id;
+  const DetailsScreen({super.key, required this.id});
 
   @override
   Widget build(BuildContext context) {
-    return _DetailsContent(url: url);
+    // إنشاء نسخة جديدة من البروفايدر لكل شاشة (Scoped Provider)
+    return ChangeNotifierProvider(
+      create: (_) => DetailsProvider(),
+      child: _DetailsContent(id: id),
+    );
   }
 }
 
 class _DetailsContent extends StatefulWidget {
-  final String url;
-  const _DetailsContent({required this.url});
+  final int id;
+  const _DetailsContent({required this.id});
 
   @override
   State<_DetailsContent> createState() => _DetailsContentState();
 }
 
 class _DetailsContentState extends State<_DetailsContent> {
+  int? _loadingEpisodeId;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() =>
-        Provider.of<DetailsProvider>(context, listen: false).fetchDetails(widget.url)
+        Provider.of<DetailsProvider>(context, listen: false).fetchDetails(widget.id)
     );
   }
 
-  void _navigateToNewPage(String link) {
+  void _navigateToNewPage(int id) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DetailsScreen(url: link),
+        builder: (context) => DetailsScreen(id: id),
       ),
     );
   }
@@ -137,12 +143,12 @@ class _DetailsContentState extends State<_DetailsContent> {
 
                       Consumer<FavoritesProvider>(
                         builder: (context, favProvider, _) {
-                          final isFav = favProvider.isFavorite(widget.url);
+                          final isFav = favProvider.isFavorite(widget.id);
                           return Align(
                             alignment: Alignment.center,
                             child: InkWell(
                               onTap: () {
-                                favProvider.toggleFavorite(data.title, data.poster, widget.url);
+                                favProvider.toggleFavorite(data.title, data.poster, widget.id);
                               },
                               borderRadius: BorderRadius.circular(30),
                               child: AnimatedContainer(
@@ -179,7 +185,6 @@ class _DetailsContentState extends State<_DetailsContent> {
                           );
                         },
                       ),
-                      // ================== زر المفضلة (نهاية الإضافة) ==================
 
                       const SizedBox(height: 25),
 
@@ -204,7 +209,7 @@ class _DetailsContentState extends State<_DetailsContent> {
                             onPressed: provider.isServersLoading
                                 ? null
                                 : () {
-                              Provider.of<DetailsProvider>(context, listen: false).fetchServers(widget.url, context);
+                              Provider.of<DetailsProvider>(context, listen: false).fetchServers(widget.id, context);
                             },
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             child: provider.isServersLoading
@@ -241,7 +246,7 @@ class _DetailsContentState extends State<_DetailsContent> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  "قم باختيار الموسم والحلقة بالأسفل للمشاهدة",
+                                  "قم باختيار الحلقة بالأسفل للتشغيل أو التحميل المباشر",
                                   style: TextStyle(color: Colors.grey[300], fontSize: 13),
                                 ),
                               ),
@@ -265,7 +270,7 @@ class _DetailsContentState extends State<_DetailsContent> {
                       if (data.seasons.isNotEmpty) ...[
                         _buildSeasonsDropdown(provider, data.seasons),
                         const SizedBox(height: 15),
-                        _buildEpisodesHorizontalList(data.seasons[provider.selectedSeasonIndex].episodes),
+                        _buildEpisodesHorizontalList(data.seasons[provider.selectedSeasonIndex].episodes, data.poster),
                       ],
 
                       const SizedBox(height: 30),
@@ -348,40 +353,83 @@ class _DetailsContentState extends State<_DetailsContent> {
     );
   }
 
-  Widget _buildEpisodesHorizontalList(List<Episode> episodes) {
+  Widget _buildEpisodesHorizontalList(List<Episode> episodes, String posterUrl) {
     return SizedBox(
-      height: 65,
+      height: 130,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: episodes.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final episode = episodes[index];
-          return InkWell(
-            onTap: () => _navigateToNewPage(episode.link),
-            borderRadius: BorderRadius.circular(12),
+          final bool isLoading = _loadingEpisodeId == episode.id;
+
+          return GestureDetector(
+            onTap: isLoading ? null : () async {
+              setState(() {
+                _loadingEpisodeId = episode.id;
+              });
+
+              await Provider.of<DetailsProvider>(context, listen: false)
+                  .fetchServers(episode.id, context, isEpisode: true);
+
+              if(mounted) {
+                setState(() {
+                  _loadingEpisodeId = null;
+                });
+              }
+            },
             child: Container(
-              width: 140,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              width: 160,
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white10),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent.withOpacity(0.15),
-                      shape: BoxShape.circle,
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: CachedNetworkImage(
+                            imageUrl: posterUrl,
+                            fit: BoxFit.cover,
+                            color: Colors.black.withOpacity(0.4),
+                            colorBlendMode: BlendMode.darken,
+                            placeholder: (context, url) => Container(color: Colors.grey[900]),
+                          ),
+                        ),
+                        Center(
+                          child: isLoading
+                              ? const SizedBox(
+                            height: 40,
+                            width: 40,
+                            child: CircularProgressIndicator(
+                              color: Colors.redAccent,
+                              strokeWidth: 3,
+                            ),
+                          )
+                              : const Icon(Icons.play_circle_outline, color: Colors.white, size: 40),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.play_arrow_rounded, color: Colors.redAccent, size: 20),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    "الحلقة ${episode.number}",
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "الحلقة ${episode.number}",
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Icon(Icons.file_download_outlined, color: Colors.grey, size: 20),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -402,7 +450,7 @@ class _DetailsContentState extends State<_DetailsContent> {
         itemBuilder: (context, index) {
           final item = items[index];
           return GestureDetector(
-            onTap: () => _navigateToNewPage(item.link),
+            onTap: () => _navigateToNewPage(item.id),
             child: SizedBox(
               width: 110,
               child: Column(
@@ -448,7 +496,7 @@ class _DetailsContentState extends State<_DetailsContent> {
       itemBuilder: (context, index) {
         final item = items[index];
         return GestureDetector(
-          onTap: () => _navigateToNewPage(item.link),
+          onTap: () => _navigateToNewPage(item.id),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

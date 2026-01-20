@@ -25,11 +25,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _navigateToDetails(BuildContext context, String link) {
+  void _navigateToDetails(BuildContext context, int id) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DetailsScreen(url: link),
+        builder: (context) => DetailsScreen(id: id),
       ),
     );
   }
@@ -55,30 +55,37 @@ class _HomeScreenState extends State<HomeScreen> {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(
-                child: _buildFeaturedSection(data.featured),
-              ),
-
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('أحدث الحلقات'),
-                    _buildHorizontalList(data.episodes),
-                  ],
+              // 1. Featured Section (Slider)
+              if (data.featured.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildFeaturedSection(data.featured),
                 ),
-              ),
 
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('أحدث الأفلام'),
-                    _buildHorizontalList(data.movies),
-                  ],
+              // 2. Episodes Section (Hide if empty)
+              if (data.episodes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('أحدث الحلقات'),
+                      _buildHorizontalList(data.episodes),
+                    ],
+                  ),
                 ),
-              ),
 
+              // 3. Movies Section (Hide if empty)
+              if (data.movies.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('أحدث الأفلام'),
+                      _buildHorizontalList(data.movies),
+                    ],
+                  ),
+                ),
+
+              // 4. Watch History Section
               Consumer<WatchHistoryProvider>(
                   builder: (context, historyProvider, _) {
                     if (historyProvider.history.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
@@ -128,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                               scrollDirection: Axis.horizontal,
                               physics: const BouncingScrollPhysics(),
-                              itemCount: historyProvider.history.take(10).length, // عرض أحدث 10 فقط في الرئيسية
+                              itemCount: historyProvider.history.take(10).length,
                               separatorBuilder: (ctx, i) => const SizedBox(width: 12),
                               itemBuilder: (ctx, i) {
                                 final item = historyProvider.history[i];
@@ -139,14 +146,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                 return GestureDetector(
                                   onTap: () {
-                                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(item.link, context);
+                                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(
+                                        item.id,
+                                        context,
+                                        title: item.title,
+                                        poster: item.image
+                                    );
+
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                                       content: Text("جاري الاستكمال..."),
                                       duration: Duration(seconds: 1),
                                     ));
                                   },
                                   onLongPress: (){
-                                    historyProvider.removeItem(item.link);
+                                    historyProvider.removeItem(item.id);
                                   },
                                   child: SizedBox(
                                     width: 200,
@@ -205,17 +218,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
               ),
 
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('المسلسلات'),
-                    _buildSeriesSection(data.series),
-                    const SizedBox(height: 20),
-                  ],
+              // 5. Series Section (Hide if empty)
+              if (data.series.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('المسلسلات'),
+                      _buildSeriesSection(data.series),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
-              ),
 
+              // 6. Categories Sections (Hide if empty logic handled inside or by list empty check)
               if (provider.categories.isNotEmpty)
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
@@ -278,22 +294,19 @@ class _HomeScreenState extends State<HomeScreen> {
         itemBuilder: (context, index) {
           final item = items[index];
           return Container(
-            padding: EdgeInsets.only(right: 15),
+            padding: const EdgeInsets.only(right: 15),
             height: 450,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  /// Image
                   CachedNetworkImage(
                     imageUrl: item.image,
                     fit: BoxFit.cover,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[900]),
                   ),
-
-                  /// Strong gradient
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -307,8 +320,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-
-                  /// Title + Category
                   Positioned(
                     bottom: 90,
                     left: 24,
@@ -341,15 +352,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-
-                  /// Play Button (Bottom Center)
                   Positioned(
                     bottom: 24,
                     left: 0,
                     right: 0,
                     child: Center(
                       child: GestureDetector(
-                        onTap: () => _navigateToDetails(context, item.link),
+                        onTap: () => _navigateToDetails(context, item.id),
                         child: Container(
                           height: 52,
                           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -400,7 +409,7 @@ class _HomeScreenState extends State<HomeScreen> {
         itemBuilder: (context, index) {
           final item = items[index];
           return GestureDetector(
-            onTap: () => _navigateToDetails(context, item.link),
+            onTap: () => _navigateToDetails(context, item.id),
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
               child: ClipRRect(
@@ -455,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
         itemBuilder: (context, index) {
           final item = items[index];
           return GestureDetector(
-            onTap: () => _navigateToDetails(context, item.link),
+            onTap: () => _navigateToDetails(context, item.id),
             child: SizedBox(
               width: 110,
               child: Column(
@@ -526,10 +535,8 @@ class _CategorySectionState extends State<CategorySection> {
   @override
   void initState() {
     super.initState();
-    // بمجرد ما الـ Widget دي تتبني (يعني ظهرت في السكرول)، بنطلب البيانات
-    // بنستخدم addPostFrameCallback عشان نتأكد ان الـ Build خلص
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<HomeProvider>(context, listen: false).fetchCategoryPreview(widget.category.link);
+      Provider.of<HomeProvider>(context, listen: false).fetchCategoryPreview(widget.category.id);
     });
   }
 
@@ -537,10 +544,9 @@ class _CategorySectionState extends State<CategorySection> {
   Widget build(BuildContext context) {
     return Consumer<HomeProvider>(
       builder: (context, provider, child) {
-        final items = provider.categoryPreviews[widget.category.link];
+        final items = provider.categoryPreviews[widget.category.id];
 
         if (items == null) {
-          // جاري التحميل (Skeleton خفيف أو مؤشر loading)
           return Container(
             height: 200,
             margin: const EdgeInsets.symmetric(vertical: 10),
@@ -574,7 +580,7 @@ class _CategorySectionState extends State<CategorySection> {
                         MaterialPageRoute(
                           builder: (context) => CategoryScreen(
                             title: widget.category.title,
-                            url: widget.category.link,
+                            id: widget.category.id,
                           ),
                         ),
                       );
@@ -591,8 +597,6 @@ class _CategorySectionState extends State<CategorySection> {
                 ],
               ),
             ),
-            // نستخدم نفس الدالة الموجودة في HomeScreen بس هننقلها هنا أو نستخدمها بشكل عام
-            // للسهولة هنا هنعيد استخدام الـ ListView
             SizedBox(
               height: 200,
               child: ListView.separated(
@@ -608,7 +612,7 @@ class _CategorySectionState extends State<CategorySection> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DetailsScreen(url: item.link),
+                          builder: (context) => DetailsScreen(id: item.id),
                         ),
                       );
                     },
@@ -629,7 +633,7 @@ class _CategorySectionState extends State<CategorySection> {
                                     placeholder: (context, url) => Container(color: Colors.grey[900]),
                                     errorWidget: (context, url, error) => const Icon(Icons.error),
                                   ),
-                                  if (item.quality != null)
+                                  if (item.quality != null && item.quality!.isNotEmpty && item.quality!.toLowerCase() != "unknown")
                                     Positioned(
                                       top: 6,
                                       left: 6,
@@ -639,10 +643,10 @@ class _CategorySectionState extends State<CategorySection> {
                                           color: const Color(0xFFE50914),
                                           borderRadius: BorderRadius.circular(4),
                                         ),
-                                        child: (item.quality!.toLowerCase() != "unknown")? Text(
+                                        child: ((item.quality!.toLowerCase() != "unknown") || (item.quality!.isEmpty))? Text(
                                           item.quality!,
                                           style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                        ) : SizedBox.shrink(),
+                                        ) : SizedBox(),
                                       ),
                                     ),
                                 ],

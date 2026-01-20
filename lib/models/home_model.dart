@@ -1,6 +1,6 @@
 class ContentItem {
+  final int id;
   final String title;
-  final String link;
   final String image;
   final String? rating;
   final String? quality;
@@ -10,8 +10,8 @@ class ContentItem {
   final String? episodeNumber;
 
   ContentItem({
+    required this.id,
     required this.title,
-    required this.link,
     required this.image,
     this.rating,
     this.quality,
@@ -23,8 +23,8 @@ class ContentItem {
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
     return ContentItem(
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
       title: json['title'] ?? '',
-      link: json['link'] ?? '',
       image: json['image'] ?? '',
       rating: json['rating'] == "N/A" ? null : json['rating'],
       quality: json['quality'],
@@ -50,27 +50,33 @@ class HomeData {
   });
 
   factory HomeData.fromJson(Map<String, dynamic> json) {
+    List<ContentItem> parseList(String key) {
+      return json[key] != null
+          ? (json[key] as List).map((e) => ContentItem.fromJson(e)).toList()
+          : [];
+    }
+
     return HomeData(
-      featured: (json['featured'] as List).map((e) => ContentItem.fromJson(e)).toList(),
-      episodes: (json['episodes'] as List).map((e) => ContentItem.fromJson(e)).toList(),
-      movies: (json['movies'] as List).map((e) => ContentItem.fromJson(e)).toList(),
-      series: (json['series'] as List).map((e) => ContentItem.fromJson(e)).toList(),
+      featured: parseList('featured'),
+      episodes: parseList('episodes'),
+      movies: parseList('movies'),
+      series: parseList('series'),
     );
   }
 }
 
 class CategoryItem {
+  final int id;
   final String title;
-  final String link;
   final String type;
 
-  CategoryItem({required this.title, required this.link, required this.type});
+  CategoryItem({required this.id, required this.title, required this.type});
 
   factory CategoryItem.fromJson(Map<String, dynamic> json) {
     return CategoryItem(
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
       title: json['title'] ?? '',
-      link: json['link'] ?? '',
-      type: json['type'] ?? '',
+      type: json['type'] ?? 'category',
     );
   }
 }

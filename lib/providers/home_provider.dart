@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import '../models/home_model.dart';
+import '../services/api_service.dart';
 
 class HomeProvider with ChangeNotifier {
   HomeData? homeData;
@@ -8,11 +8,9 @@ class HomeProvider with ChangeNotifier {
   String? error;
 
   List<CategoryItem> categories = [];
-  Map<String, List<ContentItem>> categoryPreviews = {};
+  Map<int, List<ContentItem>> categoryPreviews = {};
 
-  final Dio _dio = Dio();
   final String _baseUrl = 'https://ar.fastmovies.site/arb/home';
-  final String _categoriesUrl = 'https://ar.fastmovies.site/arb/categories';
   final String _categoryContentUrl = 'https://ar.fastmovies.site/arb/category';
 
   Future<void> fetchHomeData() async {
@@ -21,13 +19,22 @@ class HomeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _dio.get(_baseUrl);
-      if (response.statusCode == 200) {
-        homeData = HomeData.fromJson(response.data);
-        // بعد ما نجيب الهوم، نجيب قائمة التصنيفات
-        fetchCategories();
+      final data = await ApiService.get(_baseUrl);
+
+      if (data != null) {
+        homeData = HomeData.fromJson(data);
+
+        if (data['sections'] != null) {
+          List<dynamic> secs = data['sections'];
+          categories = [];
+          for(var sec in secs) {
+            if(sec['items'] != null) {
+              categories.addAll((sec['items'] as List).map((e) => CategoryItem.fromJson(e)).toList());
+            }
+          }
+        }
       } else {
-        error = 'فشل في تحميل البيانات: ${response.statusCode}';
+        error = 'فشل في تحميل البيانات';
       }
     } catch (e) {
       error = 'حدث خطأ: $e';
@@ -37,47 +44,27 @@ class HomeProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchCategories() async {
-    try {
-      final response = await _dio.get(
-        _categoriesUrl,
-        options: Options(headers: {'accept': 'application/json'}),
-      );
-      if (response.statusCode == 200) {
-        List<dynamic> data = response.data;
-        categories = data.map((e) => CategoryItem.fromJson(e)).toList();
-        notifyListeners();
-      }
-    } catch (e) {
-      print("Error fetching categories: $e");
-    }
-  }
-
-  Future<void> fetchCategoryPreview(String url) async {
-    if (categoryPreviews.containsKey(url)) return;
+  Future<void> fetchCategoryPreview(int catId) async {
+    if (categoryPreviews.containsKey(catId)) return;
 
     try {
-      final response = await _dio.post(
+      final data = await ApiService.post(
         _categoryContentUrl,
-        data: {
-          "url": url,
+        {
+          "id": catId,
           "page": 1
         },
-        options: Options(headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json'
-        }),
       );
 
-      if (response.statusCode == 200) {
-        List<dynamic> itemsJson = response.data['items'];
+      if (data != null) {
+        List<dynamic> itemsJson = data['items'];
         List<ContentItem> items = itemsJson.map((e) => ContentItem.fromJson(e)).toList();
 
-        categoryPreviews[url] = items;
+        categoryPreviews[catId] = items;
         notifyListeners();
       }
     } catch (e) {
-      print("Error fetching category preview for $url: $e");
+      print("Error fetching category preview for $catId: $e");
     }
   }
 }

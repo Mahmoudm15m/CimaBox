@@ -1,12 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 import '../models/details_model.dart';
 import '../models/server_model.dart';
 import '../screens/video_player_screen.dart';
 import '../utils/video_scraper.dart';
 import 'downloads_provider.dart';
+import '../services/api_service.dart';
 
 class DetailsProvider with ChangeNotifier {
   DetailsModel? details;
@@ -17,30 +16,25 @@ class DetailsProvider with ChangeNotifier {
   bool isServersLoading = false;
   Map<String, List<ServerItem>>? availableQualities;
 
-  final Dio _dio = Dio();
   final String _detailsUrl = 'https://ar.fastmovies.site/arb/details';
   final String _serversUrl = 'https://ar.fastmovies.site/arb/servers';
 
-  Future<void> fetchDetails(String link) async {
+  Future<void> fetchDetails(int id) async {
     isLoading = true;
     error = null;
     selectedSeasonIndex = 0;
     availableQualities = null;
     notifyListeners();
     try {
-      final response = await _dio.post(
+      final data = await ApiService.post(
         _detailsUrl,
-        data: {'url': link},
-        options: Options(headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json',
-        }),
+        {'id': id},
       );
 
-      if (response.statusCode == 200) {
-        details = DetailsModel.fromJson(response.data);
+      if (data != null) {
+        details = DetailsModel.fromJson(data);
       } else {
-        error = 'فشل التحميل: ${response.statusCode}';
+        error = 'فشل التحميل';
       }
     } catch (e) {
       error = 'حدث خطأ: $e';
@@ -55,22 +49,18 @@ class DetailsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Map<String, List<ServerItem>>?> getServersOnly(String contentUrl) async {
+  Future<Map<String, List<ServerItem>>?> getServersOnly(int contentId) async {
     try {
-      final response = await _dio.post(
+      final data = await ApiService.post(
         _serversUrl,
-        data: {'url': contentUrl},
-        options: Options(headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json',
-        }),
+        {'id': contentId},
       );
 
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = response.data;
+      if (data != null) {
+        Map<String, dynamic> jsonResponse = data;
         Map<String, List<ServerItem>> result = {};
 
-        data.forEach((quality, serversList) {
+        jsonResponse.forEach((quality, serversList) {
           if (serversList is List && serversList.isNotEmpty) {
             result[quality] = serversList
                 .map((e) => ServerItem.fromJson(e))
@@ -85,17 +75,23 @@ class DetailsProvider with ChangeNotifier {
     return null;
   }
 
-  Future<void> fetchServers(String contentUrl, BuildContext context) async {
+  Future<void> fetchServers(int contentId, BuildContext context, {bool isEpisode = false, String? title, String? poster}) async {
     isServersLoading = true;
     notifyListeners();
 
     try {
-      final qualities = await getServersOnly(contentUrl);
+      if (details == null) {
+        try {
+          await fetchDetails(contentId);
+        } catch (e) {}
+      }
+
+      final qualities = await getServersOnly(contentId);
 
       if (qualities != null) {
         availableQualities = qualities;
         if (context.mounted) {
-          _showQualitySelector(context, contentUrl);
+          _showQualitySelector(context, contentId, isEpisode: isEpisode, title: title, poster: poster);
         }
       } else {
         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد سيرفرات متاحة')));
@@ -108,32 +104,38 @@ class DetailsProvider with ChangeNotifier {
     }
   }
 
-  String _cleanUrl(String url) {
-    return url.trim().replaceAll(RegExp(r'/$'), ''); // حذف الشرطة المائلة في الاخر
-  }
-
-  void _showQualitySelector(BuildContext context, String currentUrl) {
+  void _showQualitySelector(BuildContext context, int contentId, {bool isEpisode = false, String? title, String? poster}) {
     int targetSeasonIdx = 0;
     int targetEpisodeIdx = 0;
-    String cleanCurrentUrl = _cleanUrl(currentUrl);
 
     if (details != null && details!.seasons.isNotEmpty) {
       bool found = false;
-      for (int s = 0; s < details!.seasons.length; s++) {
-        final season = details!.seasons[s];
-        for (int e = 0; e < season.episodes.length; e++) {
-          if (_cleanUrl(season.episodes[e].link) == cleanCurrentUrl) {
+      for(int s = 0; s < details!.seasons.length; s++) {
+        for(int e = 0; e < details!.seasons[s].episodes.length; e++) {
+          if (details!.seasons[s].episodes[e].id == contentId) {
             targetSeasonIdx = s;
             targetEpisodeIdx = e;
+            selectedSeasonIndex = s;
             found = true;
             break;
           }
         }
         if (found) break;
       }
-      if (!found) {
-        targetSeasonIdx = selectedSeasonIndex;
-      }
+    }
+
+    DetailsModel? finalDetails = details;
+    if (finalDetails == null && title != null) {
+      finalDetails = DetailsModel(
+        type: 'video',
+        title: title,
+        poster: poster ?? '',
+        story: '',
+        info: {},
+        seasons: [],
+        related: [],
+        collection: [],
+      );
     }
 
     showModalBottomSheet(
@@ -192,13 +194,16 @@ class DetailsProvider with ChangeNotifier {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => VideoPlayerScreen(
-                                  qualities: availableQualities!,
-                                  startQuality: quality,
-                                  detailsModel: details,
-                                  currentSeasonIndex: targetSeasonIdx,
-                                  currentEpisodeIndex: targetEpisodeIdx,
-                                  sourceLink: cleanCurrentUrl,
+                                builder: (context) => ListenableProvider.value(
+                                  value: this,
+                                  child: VideoPlayerScreen(
+                                    qualities: availableQualities!,
+                                    startQuality: quality,
+                                    detailsModel: finalDetails,
+                                    currentSeasonIndex: targetSeasonIdx,
+                                    currentEpisodeIndex: targetEpisodeIdx,
+                                    sourceId: contentId,
+                                  ),
                                 ),
                               ),
                             );
@@ -207,7 +212,7 @@ class DetailsProvider with ChangeNotifier {
                             icon: const Icon(Icons.file_download_outlined, color: Colors.white70),
                             onPressed: () {
                               Navigator.pop(ctx);
-                              Provider.of<DetailsProvider>(context, listen: false).downloadQuality(context, quality);
+                              downloadQuality(context, quality);
                             },
                           ),
                         ),
@@ -236,21 +241,12 @@ class DetailsProvider with ChangeNotifier {
       servers.sort((a, b) {
         bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
         bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
-
-        bool aIsHls = a.link.contains('vidmoly') || a.link.contains('up4fun');
-        bool bIsHls = b.link.contains('vidmoly') || b.link.contains('up4fun');
-
         if (aIsDirect && !bIsDirect) return -1;
         if (!aIsDirect && bIsDirect) return 1;
-
-        if (aIsHls && !bIsHls) return 1;
-        if (!aIsHls && bIsHls) return -1;
-
         return 0;
       });
 
       Map<String, dynamic>? directLinkData;
-
       for (var server in servers) {
         directLinkData = await _tryExtract(server.link);
         if (directLinkData != null) break;
@@ -260,7 +256,6 @@ class DetailsProvider with ChangeNotifier {
 
       if (directLinkData != null && context.mounted) {
         String finalUrl = directLinkData['url'];
-
         Map<String, String> headers = {};
         if (directLinkData['headers'] != null) {
           directLinkData['headers'].forEach((k, v) {

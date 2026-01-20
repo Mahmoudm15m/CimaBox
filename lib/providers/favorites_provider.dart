@@ -4,26 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FavoriteItem {
+  final int id;
   final String title;
   final String image;
-  final String link;
 
   FavoriteItem({
     required this.title,
     required this.image,
-    required this.link,
+    required this.id,
   });
 
   Map<String, dynamic> toJson() => {
     'title': title,
     'image': image,
-    'link': link,
+    'id': id,
   };
 
   factory FavoriteItem.fromJson(Map<String, dynamic> json) => FavoriteItem(
     title: json['title'],
     image: json['image'],
-    link: json['link'],
+    id: json['id'],
   );
 }
 
@@ -64,25 +64,25 @@ class FavoritesProvider with ChangeNotifier {
     }
   }
 
-  bool isFavorite(String link) {
-    return favorites.any((element) => element.link == link);
+  bool isFavorite(int id) {
+    return favorites.any((element) => element.id == id);
   }
 
-  void toggleFavorite(String title, String image, String link) {
-    final isExist = favorites.any((element) => element.link == link);
+  void toggleFavorite(String title, String image, int id) {
+    final isExist = favorites.any((element) => element.id == id);
 
     if (isExist) {
-      favorites.removeWhere((element) => element.link == link);
+      favorites.removeWhere((element) => element.id == id);
     } else {
-      favorites.insert(0, FavoriteItem(title: title, image: image, link: link));
+      favorites.insert(0, FavoriteItem(title: title, image: image, id: id));
     }
 
     notifyListeners();
     _saveToDisk();
   }
 
-  void removeFavorite(String link) {
-    favorites.removeWhere((element) => element.link == link);
+  void removeFavorite(int id) {
+    favorites.removeWhere((element) => element.id == id);
     notifyListeners();
     _saveToDisk();
   }

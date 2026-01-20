@@ -254,10 +254,24 @@
             </list>
           </value>
         </entry>
+        <entry key="flutter_plugin_android_lifecycle">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.33/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="flutter_test">
           <value>
             <list>
               <option value="$PROJECT_DIR$/../../../../flutter/packages/flutter_test/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="flutter_volume_controller">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_volume_controller-1.3.4/lib" />
             </list>
           </value>
         </entry>
@@ -611,6 +625,48 @@
             </list>
           </value>
         </entry>
+        <entry key="screen_brightness">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness-0.2.2+1/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="screen_brightness_android">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_android-0.1.0+2/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="screen_brightness_ios">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_ios-0.1.0/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="screen_brightness_macos">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_macos-0.1.0+1/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="screen_brightness_platform_interface">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_platform_interface-0.1.0/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="screen_brightness_windows">
+          <value>
+            <list>
+              <option value="$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_windows-0.1.3/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="sky_engine">
           <value>
             <list>
@@ -879,6 +935,8 @@
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_downloader-1.12.0/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_launcher_icons-0.14.4/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_lints-6.0.0/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.33/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_volume_controller-1.3.4/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_widget_from_html_core-0.17.0/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/html-0.15.6/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/http-1.6.0/lib" />
@@ -928,6 +986,12 @@
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/posix-6.0.3/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/provider-6.1.5+1/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/rxdart-0.28.0/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness-0.2.2+1/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_android-0.1.0+2/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_ios-0.1.0/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_macos-0.1.0+1/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_platform_interface-0.1.0/lib" />
+      <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/screen_brightness_windows-0.1.3/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/source_span-1.10.1/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/sqflite-2.4.2/lib" />
       <root url="file://$USER_HOME$/AppData/Local/Pub/Cache/hosted/pub.dev/sqflite_android-2.4.2+2/lib" />

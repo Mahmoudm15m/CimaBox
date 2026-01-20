@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 class HistoryItem {
-  final String id;
+  final int id;
   final String title;
   final String image;
-  final String link;
   final int positionMs;
   final int durationMs;
   final DateTime lastWatched;
@@ -17,7 +16,6 @@ class HistoryItem {
     required this.id,
     required this.title,
     required this.image,
-    required this.link,
     required this.positionMs,
     required this.durationMs,
     required this.lastWatched,
@@ -28,7 +26,6 @@ class HistoryItem {
     'id': id,
     'title': title,
     'image': image,
-    'link': link,
     'positionMs': positionMs,
     'durationMs': durationMs,
     'lastWatched': lastWatched.toIso8601String(),
@@ -39,7 +36,6 @@ class HistoryItem {
     id: json['id'],
     title: json['title'],
     image: json['image'],
-    link: json['link'],
     positionMs: json['positionMs'] ?? 0,
     durationMs: json['durationMs'] ?? 0,
     lastWatched: DateTime.parse(json['lastWatched']),
@@ -86,20 +82,19 @@ class WatchHistoryProvider with ChangeNotifier {
   }
 
   void saveProgress({
-    required String link,
+    required int id,
     required String title,
     required String image,
     required int positionMs,
     required int durationMs,
     String? quality,
   }) {
-    history.removeWhere((item) => item.link == link);
+    history.removeWhere((item) => item.id == id);
 
     final newItem = HistoryItem(
-      id: link,
+      id: id,
       title: title,
       image: image,
-      link: link,
       positionMs: positionMs,
       durationMs: durationMs,
       lastWatched: DateTime.now(),
@@ -111,16 +106,16 @@ class WatchHistoryProvider with ChangeNotifier {
     _saveToDisk();
   }
 
-  int getSavedPosition(String link) {
+  int getSavedPosition(int id) {
     final item = history.firstWhere(
-          (element) => element.link == link,
-      orElse: () => HistoryItem(id: '', title: '', image: '', link: '', positionMs: 0, durationMs: 0, lastWatched: DateTime.now()),
+          (element) => element.id == id,
+      orElse: () => HistoryItem(id: 0, title: '', image: '', positionMs: 0, durationMs: 0, lastWatched: DateTime.now()),
     );
     return item.positionMs;
   }
 
-  void removeItem(String link) {
-    history.removeWhere((item) => item.link == link);
+  void removeItem(int id) {
+    history.removeWhere((item) => item.id == id);
     notifyListeners();
     _saveToDisk();
   }
@@ -130,5 +125,4 @@ class WatchHistoryProvider with ChangeNotifier {
     notifyListeners();
     _saveToDisk();
   }
-  
 }

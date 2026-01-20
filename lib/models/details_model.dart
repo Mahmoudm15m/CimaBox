@@ -50,18 +50,13 @@ class Season {
         ? (json['episodes'] as List).map((e) => Episode.fromJson(e)).toList()
         : <Episode>[];
 
-    // --- التعديل هنا: ترتيب الحلقات تصاعدياً ---
     try {
       eps.sort((a, b) {
-        // استخراج الأرقام وتحويلها لـ int للمقارنة الصحيحة
         int n1 = int.tryParse(a.number.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
         int n2 = int.tryParse(b.number.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
         return n1.compareTo(n2);
       });
-    } catch (e) {
-      // في حالة فشل الترتيب، اتركها كما هي
-    }
-    // -------------------------------------------
+    } catch (e) {}
 
     return Season(
       name: json['name'] ?? '',
@@ -71,31 +66,33 @@ class Season {
 }
 
 class Episode {
-  final String link;
+  final int id;
   final String number;
 
-  Episode({required this.link, required this.number});
+  Episode({required this.id, required this.number});
 
   factory Episode.fromJson(Map<String, dynamic> json) {
     return Episode(
-      link: json['link'] ?? '',
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
       number: json['number'] != null ? json['number'].toString() : '',
     );
   }
 }
 
 class RelatedItem {
+  final int id;
   final String title;
   final String image;
-  final String link;
+  final String type;
 
-  RelatedItem({required this.title, required this.image, required this.link});
+  RelatedItem({required this.title, required this.image, required this.id, required this.type});
 
   factory RelatedItem.fromJson(Map<String, dynamic> json) {
     return RelatedItem(
       title: json['title'] ?? '',
       image: json['image'] ?? '',
-      link: json['link'] ?? '',
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      type: json['type'] ?? 'movie',
     );
   }
 }

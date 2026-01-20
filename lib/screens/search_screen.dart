@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/search_provider.dart';
-import '../models/home_model.dart'; // تأكد من استدعاء الموديل
+import '../models/home_model.dart';
 import 'details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -33,7 +33,6 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
-          // 1. مربع البحث والفلاتر
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(
@@ -73,7 +72,6 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-          // 2. النتائج (تم التعديل لـ ListView)
           Expanded(
             child: Consumer<SearchProvider>(
               builder: (context, provider, child) {
@@ -98,11 +96,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   );
                 }
 
-                // هنا التغيير: ListView بدل GridView
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: provider.results.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12), // مسافة بين العناصر
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = provider.results[index];
                     return _buildSearchItem(context, item);
@@ -116,33 +113,31 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // دالة بناء العنصر (صورة يسار + معلومات يمين)
   Widget _buildSearchItem(BuildContext context, ContentItem item) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DetailsScreen(url: item.link),
+            builder: (context) => DetailsScreen(id: item.id), // ID
           ),
         );
       },
       child: Container(
-        height: 140, // ارتفاع ثابت للكارت
+        height: 140,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E), // لون خلفية الكارت
+          color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            // 1. الصورة (على اليسار)
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(12),
                 bottomRight: Radius.circular(12),
               ),
               child: AspectRatio(
-                aspectRatio: 2 / 3, // نسبة البوستر القياسية
+                aspectRatio: 2 / 3,
                 child: CachedNetworkImage(
                   imageUrl: item.image,
                   fit: BoxFit.cover,
@@ -152,7 +147,6 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
 
-            // 2. المعلومات (على اليمين)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -160,7 +154,6 @@ class _SearchScreenState extends State<SearchScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // العنوان
                     Text(
                       item.title,
                       maxLines: 2,
@@ -174,12 +167,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                     const Spacer(),
 
-                    // شارات المعلومات (تقييم - جودة - نوع)
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        // التقييم
                         if (item.rating != null && item.rating != "N/A")
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -201,7 +192,6 @@ class _SearchScreenState extends State<SearchScreen> {
                             ),
                           ),
 
-                        // الجودة
                         if (item.quality != null)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -216,7 +206,6 @@ class _SearchScreenState extends State<SearchScreen> {
                             ),
                           ),
 
-                        // النوع (فيلم/مسلسل)
                         if (item.type != null)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),

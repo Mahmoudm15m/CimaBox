@@ -72,7 +72,7 @@ class WatchHistoryScreen extends StatelessWidget {
               }
 
               return Dismissible(
-                key: Key(item.link),
+                key: Key(item.id.toString()),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
@@ -81,18 +81,25 @@ class WatchHistoryScreen extends StatelessWidget {
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 onDismissed: (_) {
-                  provider.removeItem(item.link);
+                  provider.removeItem(item.id); // ID
                 },
                 child: GestureDetector(
                   onTap: () {
-                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(item.link, context);
+                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(
+                        item.id,
+                        context,
+                        isEpisode: false,
+                        title: item.title,
+                        poster: item.image
+                    );
+
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text("جاري الاستكمال..."),
                       duration: Duration(seconds: 1),
                     ));
                   },
                   child: Container(
-                    height: 120, // <--- التعديل هنا: زودنا الارتفاع من 100 لـ 120
+                    height: 120,
                     decoration: BoxDecoration(
                       color: const Color(0xFF1E1E1E),
                       borderRadius: BorderRadius.circular(12),
@@ -132,7 +139,7 @@ class WatchHistoryScreen extends StatelessWidget {
                         ),
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), // تحسين الـ padding
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -152,7 +159,7 @@ class WatchHistoryScreen extends StatelessWidget {
                                   "${(progress * 100).toInt()}% مكتمل",
                                   style: TextStyle(color: Colors.grey[500], fontSize: 12),
                                 ),
-                                const SizedBox(height: 4), // مسافة صغيرة إضافية
+                                const SizedBox(height: 4),
                                 if (item.quality != null)
                                   Text(
                                     "الجودة: ${item.quality}",

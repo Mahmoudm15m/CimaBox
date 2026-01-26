@@ -1,9 +1,15 @@
+import 'package:cima_box/services/ad_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/details_provider.dart';
 import '../models/details_model.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/settings_provider.dart';
+import 'category_screen.dart';
+import 'actor_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../providers/auth_provider.dart';
 
 class DetailsScreen extends StatelessWidget {
   final int id;
@@ -11,7 +17,6 @@ class DetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // إنشاء نسخة جديدة من البروفايدر لكل شاشة (Scoped Provider)
     return ChangeNotifierProvider(
       create: (_) => DetailsProvider(),
       child: _DetailsContent(id: id),
@@ -33,8 +38,118 @@ class _DetailsContentState extends State<_DetailsContent> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        Provider.of<DetailsProvider>(context, listen: false).fetchDetails(widget.id)
+    Future.microtask(() {
+      final isDescending = Provider.of<SettingsProvider>(context, listen: false).sortDescending;
+      Provider.of<DetailsProvider>(context, listen: false).fetchDetails(widget.id, sortDescending: isDescending);
+    });
+    AdManager.initializeAds(context);
+  }
+
+  void _showPremiumDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 50, height: 5,
+                decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(10)),
+              ),
+              const SizedBox(height: 20),
+              const Icon(Icons.workspace_premium, size: 60, color: Colors.amber),
+              const SizedBox(height: 15),
+              const Text(
+                "ميزة للمشتركين فقط",
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "تحميل الموسم بالكامل متاح فقط لعضوية Premium",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 15),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final Uri url = Uri.parse('https://t.me/M2HM00D');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل فتح الرابط")));
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
+                    child: const Text("اشترك الآن عبر تيليجرام", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSeasonDownloadBtn(DetailsProvider provider) {
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        bool isLocked = !auth.isPremium;
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 15),
+          child: OutlinedButton.icon(
+            onPressed: () {
+              if (isLocked) {
+                _showPremiumDialog();
+              } else {
+                provider.downloadSeason(context);
+              }
+            },
+            icon: Icon(
+                isLocked ? Icons.lock : Icons.playlist_add_check,
+                color: isLocked ? Colors.grey : Colors.white70
+            ),
+            label: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "تحميل الموسم بالكامل",
+                  style: TextStyle(color: isLocked ? Colors.grey : Colors.white70),
+                ),
+                if (isLocked) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.workspace_premium, color: Colors.amber, size: 16),
+                ]
+              ],
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: isLocked ? Colors.white10 : Colors.white24),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -43,6 +158,24 @@ class _DetailsContentState extends State<_DetailsContent> {
       context,
       MaterialPageRoute(
         builder: (context) => DetailsScreen(id: id),
+      ),
+    );
+  }
+
+  void _navigateToCategory(String title, int id) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CategoryScreen(title: title, id: id),
+      ),
+    );
+  }
+
+  void _navigateToActor(int id, String name, String image) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActorScreen(id: id, name: name, imageUrl: image),
       ),
     );
   }
@@ -64,17 +197,22 @@ class _DetailsContentState extends State<_DetailsContent> {
           final data = provider.details!;
 
           return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar(
                 expandedHeight: 450,
                 pinned: true,
                 backgroundColor: const Color(0xFF121212),
-                leading: IconButton(
-                  icon: const CircleAvatar(
-                    backgroundColor: Colors.black54,
-                    child: Icon(Icons.arrow_back, color: Colors.white),
+                leading: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
                   ),
-                  onPressed: () => Navigator.pop(context),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(
@@ -92,35 +230,33 @@ class _DetailsContentState extends State<_DetailsContent> {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              const Color(0xFF121212).withOpacity(0.6),
+                              const Color(0xFF121212).withOpacity(0.2),
+                              const Color(0xFF121212).withOpacity(0.9),
                               const Color(0xFF121212),
                             ],
-                            stops: const [0.4, 0.8, 1.0],
+                            stops: const [0.0, 0.5, 0.85, 1.0],
                           ),
                         ),
                       ),
                       Positioned(
-                        bottom: 20,
+                        bottom: 0,
                         left: 20,
                         right: 20,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
                               data.title,
+                              textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 24,
+                                fontSize: 26,
                                 fontWeight: FontWeight.bold,
-                                shadows: [BoxShadow(blurRadius: 10, color: Colors.black)],
+                                height: 1.2,
+                                shadows: [BoxShadow(blurRadius: 20, color: Colors.black)],
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: _buildInfoChips(data.info),
-                            ),
+                            const SizedBox(height: 30),
                           ],
                         ),
                       ),
@@ -131,136 +267,43 @@ class _DetailsContentState extends State<_DetailsContent> {
 
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data.story,
-                        style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.6),
-                      ),
-                      const SizedBox(height: 20),
-
-                      Consumer<FavoritesProvider>(
-                        builder: (context, favProvider, _) {
-                          final isFav = favProvider.isFavorite(widget.id);
-                          return Align(
-                            alignment: Alignment.center,
-                            child: InkWell(
-                              onTap: () {
-                                favProvider.toggleFavorite(data.title, data.poster, widget.id);
-                              },
-                              borderRadius: BorderRadius.circular(30),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isFav ? const Color(0xFFE50914) : Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: isFav ? null : Border.all(color: Colors.white30),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      isFav ? Icons.remove : Icons.add,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      isFav ? "إزالة من المفضلة" : "أضف الي المفضلة",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
+                      _buildInfoGrid(data.info),
+                      const SizedBox(height: 15),
+                      _buildGenresRow(data.info),
+                      const SizedBox(height: 25),
+                      _buildActionButtons(provider, data, widget.id),
                       const SizedBox(height: 25),
 
-                      if (data.type != 'series') ...[
-                        Container(
-                          width: double.infinity,
-                          height: 55,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFE50914), Color(0xFFB00710)],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFE50914).withOpacity(0.4),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: MaterialButton(
-                            onPressed: provider.isServersLoading
-                                ? null
-                                : () {
-                              Provider.of<DetailsProvider>(context, listen: false).fetchServers(widget.id, context);
-                            },
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: provider.isServersLoading
-                                ? const SizedBox(
-                                height: 25,
-                                width: 25,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
-                            )
-                                : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.play_circle_fill, color: Colors.white, size: 28),
-                                SizedBox(width: 10),
-                                Text(
-                                  'مشاهدة و تحميل',
-                                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                          ),
+                      Text(
+                        data.story,
+                        style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: 14,
+                            height: 1.7,
+                            fontWeight: FontWeight.w400
                         ),
-                      ] else ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline, color: Colors.amber, size: 20),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  "قم باختيار الحلقة بالأسفل للتشغيل أو التحميل المباشر",
-                                  style: TextStyle(color: Colors.grey[300], fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
 
                       const SizedBox(height: 30),
+
+                      if (data.cast.isNotEmpty) ...[
+                        const Text(
+                          "طاقم العمل",
+                          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 15),
+                        _buildCastList(data.cast),
+                        const SizedBox(height: 30),
+                      ],
 
                       if (data.collection.isNotEmpty) ...[
                         const Text(
                           "سلسلة العمل",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 15),
                         _buildHorizontalPosterList(data.collection),
@@ -270,21 +313,24 @@ class _DetailsContentState extends State<_DetailsContent> {
                       if (data.seasons.isNotEmpty) ...[
                         _buildSeasonsDropdown(provider, data.seasons),
                         const SizedBox(height: 15),
-                        _buildEpisodesHorizontalList(data.seasons[provider.selectedSeasonIndex].episodes, data.poster),
-                      ],
 
-                      const SizedBox(height: 30),
+                        if (data.type == 'series')
+                            _buildSeasonDownloadBtn(provider),
+
+                        _buildEpisodesHorizontalList(data.seasons[provider.selectedSeasonIndex].episodes, data.poster, provider),
+                        const SizedBox(height: 30),
+                      ],
 
                       if (data.related.isNotEmpty) ...[
                         const Text(
                           "أعمال مشابهة",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 15),
                         _buildRelatedGrid(data.related),
                       ],
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 50),
                     ],
                   ),
                 ),
@@ -296,31 +342,242 @@ class _DetailsContentState extends State<_DetailsContent> {
     );
   }
 
-  List<Widget> _buildInfoChips(Map<String, dynamic> info) {
-    List<Widget> chips = [];
-    if (info.containsKey('سنة_العرض_')) {
-      chips.add(_infoChip(info['سنة_العرض_'][0].toString(), Colors.amber));
+  Widget _buildInfoGrid(Map<String, dynamic> info) {
+    List<Widget> items = [];
+
+    void addItem(String key, IconData icon, Color color) {
+      if (info.containsKey(key) && info[key] is List && (info[key] as List).isNotEmpty) {
+        var item = info[key][0];
+        if (item is Map && item.containsKey('text') && item.containsKey('id')) {
+          items.add(
+              InkWell(
+                onTap: () => _navigateToCategory(item['text'].toString(), item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 14, color: color),
+                      const SizedBox(width: 6),
+                      Text(
+                        item['text'].toString(),
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+          );
+        }
+      }
     }
-    if (info.containsKey('جودة_العرض_')) {
-      chips.add(_infoChip(info['جودة_العرض_'][0].toString(), Colors.blueAccent));
-    }
-    if (info.containsKey('نوع_العرض_')) {
-      chips.add(_infoChip(info['نوع_العرض_'][0].toString(), Colors.purpleAccent));
-    }
-    return chips;
+
+    addItem('سنة_العرض_', Icons.calendar_today, Colors.amber);
+    addItem('جودة_العرض_', Icons.high_quality, Colors.redAccent);
+    addItem('بلد_العرض_', Icons.public, Colors.blueAccent);
+    addItem('لغة_العرض_', Icons.translate, Colors.greenAccent);
+
+    if (items.isEmpty) return const SizedBox();
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: items,
+    );
   }
 
-  Widget _infoChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        border: Border.all(color: color.withOpacity(0.5)),
-        borderRadius: BorderRadius.circular(20),
-        color: color.withOpacity(0.1),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+  Widget _buildGenresRow(Map<String, dynamic> info) {
+    List<Widget> genres = [];
+    final keys = ['نوع_العرض_', 'تصنيف_العرض_'];
+
+    for (var key in keys) {
+      if (info.containsKey(key) && info[key] is List) {
+        for (var item in info[key]) {
+          if (item is Map && item.containsKey('text') && item.containsKey('id')) {
+            if (genres.isNotEmpty) {
+              genres.add(const Text("  •  ", style: TextStyle(color: Colors.grey, fontSize: 12)));
+            }
+            genres.add(
+                InkWell(
+                  onTap: () => _navigateToCategory(
+                      item['text'].toString(),
+                      item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0
+                  ),
+                  child: Text(
+                    item['text'].toString(),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.redAccent,
+                      decorationThickness: 1.5,
+                    ),
+                  ),
+                )
+            );
+          }
+        }
+      }
+    }
+
+    if (genres.isEmpty) return const SizedBox();
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: genres,
+    );
+  }
+
+  Widget _buildActionButtons(DetailsProvider provider, DetailsModel data, int id) {
+    bool isSeries = data.type == 'series';
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            if (!isSeries)
+              Expanded(
+                flex: 3,
+                child: ElevatedButton.icon(
+                  onPressed: (provider.loadingAction != null) ? null : () => provider.handleAction(context, id, isPlay: true),
+                  icon: (provider.loadingAction == 'play')
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.play_arrow_rounded, size: 28),
+                  label: const Text("مشاهدة", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE50914),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 5,
+                  ),
+                ),
+              ),
+            if (!isSeries)
+              const SizedBox(width: 12),
+            Expanded(
+              flex: 1,
+              child: Consumer<FavoritesProvider>(
+                builder: (context, favProvider, _) {
+                  final isFav = favProvider.isFavorite(id);
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: IconButton(
+                      onPressed: () => favProvider.toggleFavorite(data.title, data.poster, id),
+                      icon: Icon(isFav ? Icons.bookmark : Icons.bookmark_border, color: Colors.white),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        if (!isSeries)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: (provider.loadingAction != null) ? null : () => provider.handleAction(context, id, isPlay: false),
+              icon: (provider.loadingAction == 'download')
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2))
+                  : const Icon(Icons.download_rounded, color: Colors.white70),
+              label: const Text("تحميل", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.white24),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "اختر الحلقة من الأسفل للمشاهدة أو التحميل",
+                    style: TextStyle(color: Colors.amber[100], fontSize: 12),
+                  ),
+                )
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCastList(List<CastItem> cast) {
+    return SizedBox(
+      height: 120,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: cast.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 16),
+        itemBuilder: (context, index) {
+          final actor = cast[index];
+          return GestureDetector(
+            onTap: () => _navigateToActor(actor.id, actor.name, actor.image),
+            child: Column(
+              children: [
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white12, width: 1),
+                    image: DecorationImage(
+                      image: CachedNetworkImageProvider(actor.image),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 80,
+                  child: Text(
+                    actor.name,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                if (actor.role.isNotEmpty && actor.role != "ممثل")
+                  SizedBox(
+                    width: 80,
+                    child: Text(
+                      actor.role,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -331,14 +588,15 @@ class _DetailsContentState extends State<_DetailsContent> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
           value: provider.selectedSeasonIndex,
-          dropdownColor: const Color(0xFF1E1E1E),
+          dropdownColor: const Color(0xFF2B2B2B),
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.redAccent),
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
           items: List.generate(seasons.length, (index) {
             return DropdownMenuItem(
               value: index,
@@ -353,9 +611,9 @@ class _DetailsContentState extends State<_DetailsContent> {
     );
   }
 
-  Widget _buildEpisodesHorizontalList(List<Episode> episodes, String posterUrl) {
+  Widget _buildEpisodesHorizontalList(List<Episode> episodes, String posterUrl, DetailsProvider provider) {
     return SizedBox(
-      height: 130,
+      height: 160,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: episodes.length,
@@ -364,75 +622,88 @@ class _DetailsContentState extends State<_DetailsContent> {
           final episode = episodes[index];
           final bool isLoading = _loadingEpisodeId == episode.id;
 
-          return GestureDetector(
-            onTap: isLoading ? null : () async {
-              setState(() {
-                _loadingEpisodeId = episode.id;
-              });
-
-              await Provider.of<DetailsProvider>(context, listen: false)
-                  .fetchServers(episode.id, context, isEpisode: true);
-
-              if(mounted) {
-                setState(() {
-                  _loadingEpisodeId = null;
-                });
-              }
-            },
-            child: Container(
-              width: 160,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                          child: CachedNetworkImage(
-                            imageUrl: posterUrl,
-                            fit: BoxFit.cover,
-                            color: Colors.black.withOpacity(0.4),
-                            colorBlendMode: BlendMode.darken,
-                            placeholder: (context, url) => Container(color: Colors.grey[900]),
+          return Container(
+            width: 140,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                        child: CachedNetworkImage(
+                          imageUrl: posterUrl,
+                          fit: BoxFit.cover,
+                          color: Colors.black.withOpacity(0.3),
+                          colorBlendMode: BlendMode.darken,
+                        ),
+                      ),
+                      Center(
+                        child: isLoading
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2))
+                            : Icon(Icons.play_circle_fill, color: Colors.white.withOpacity(0.9), size: 35),
+                      ),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: isLoading ? null : () async {
+                            setState(() => _loadingEpisodeId = episode.id);
+                            await provider.handleAction(context, episode.id, isPlay: true, isEpisode: true);
+                            if(mounted) setState(() => _loadingEpisodeId = null);
+                          },
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF252525),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "حلقة ${episode.number}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: isLoading ? null : () async {
+                            setState(() => _loadingEpisodeId = episode.id);
+                            await provider.handleAction(context, episode.id, isPlay: false, isEpisode: true);
+                            if(mounted) setState(() => _loadingEpisodeId = null);
+                          },
+                          borderRadius: BorderRadius.circular(50),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.download_rounded, color: Colors.redAccent, size: 20),
                           ),
                         ),
-                        Center(
-                          child: isLoading
-                              ? const SizedBox(
-                            height: 40,
-                            width: 40,
-                            child: CircularProgressIndicator(
-                              color: Colors.redAccent,
-                              strokeWidth: 3,
-                            ),
-                          )
-                              : const Icon(Icons.play_circle_outline, color: Colors.white, size: 40),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "الحلقة ${episode.number}",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const Icon(Icons.file_download_outlined, color: Colors.grey, size: 20),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
@@ -442,7 +713,7 @@ class _DetailsContentState extends State<_DetailsContent> {
 
   Widget _buildHorizontalPosterList(List<RelatedItem> items) {
     return SizedBox(
-      height: 180,
+      height: 150,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
@@ -452,7 +723,7 @@ class _DetailsContentState extends State<_DetailsContent> {
           return GestureDetector(
             onTap: () => _navigateToNewPage(item.id),
             child: SizedBox(
-              width: 110,
+              width: 100,
               child: Column(
                 children: [
                   Expanded(
@@ -471,7 +742,7 @@ class _DetailsContentState extends State<_DetailsContent> {
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.2),
+                    style: const TextStyle(color: Colors.white70, fontSize: 10, height: 1.2),
                   ),
                 ],
               ),
@@ -488,7 +759,7 @@ class _DetailsContentState extends State<_DetailsContent> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 0.55,
+        childAspectRatio: 0.6,
         crossAxisSpacing: 10,
         mainAxisSpacing: 15,
       ),
@@ -516,7 +787,7 @@ class _DetailsContentState extends State<_DetailsContent> {
                 item.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.2),
+                style: const TextStyle(color: Colors.white70, fontSize: 10, height: 1.2),
               ),
             ],
           ),

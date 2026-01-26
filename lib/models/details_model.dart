@@ -4,6 +4,7 @@ class DetailsModel {
   final String poster;
   final String story;
   final Map<String, dynamic> info;
+  final List<CastItem> cast;
   final List<Season> seasons;
   final List<RelatedItem> related;
   final List<RelatedItem> collection;
@@ -14,6 +15,7 @@ class DetailsModel {
     required this.poster,
     required this.story,
     required this.info,
+    required this.cast,
     required this.seasons,
     required this.related,
     required this.collection,
@@ -26,6 +28,9 @@ class DetailsModel {
       poster: json['poster'] ?? '',
       story: json['story'] ?? '',
       info: json['info'] ?? {},
+      cast: json['cast'] != null
+          ? (json['cast'] as List).map((e) => CastItem.fromJson(e)).toList()
+          : [],
       seasons: json['seasons'] != null
           ? (json['seasons'] as List).map((e) => Season.fromJson(e)).toList()
           : [],
@@ -35,6 +40,29 @@ class DetailsModel {
       collection: json['collection'] != null
           ? (json['collection'] as List).map((e) => RelatedItem.fromJson(e)).toList()
           : [],
+    );
+  }
+}
+
+class CastItem {
+  final int id;
+  final String name;
+  final String role;
+  final String image;
+
+  CastItem({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.image,
+  });
+
+  factory CastItem.fromJson(Map<String, dynamic> json) {
+    return CastItem(
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      name: json['name'] ?? '',
+      role: json['role'] ?? '',
+      image: json['image'] ?? '',
     );
   }
 }

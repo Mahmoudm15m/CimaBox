@@ -51,6 +51,11 @@ dependencies:
   crypto: ^3.0.3
   screen_brightness: ^0.2.1
   flutter_volume_controller:
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.16.0
+  google_sign_in: ^6.1.6
+  animated_text_kit: ^4.2.2
+  unity_ads_plugin: ^0.3.28
 
 dev_dependencies:
   flutter_test:

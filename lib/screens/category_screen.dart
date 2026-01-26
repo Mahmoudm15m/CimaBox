@@ -7,8 +7,9 @@ import 'details_screen.dart';
 class CategoryScreen extends StatefulWidget {
   final String title;
   final int id;
+  final String? year;
 
-  const CategoryScreen({super.key, required this.title, required this.id});
+  const CategoryScreen({super.key, required this.title, required this.id, this.year});
 
   @override
   State<CategoryScreen> createState() => _CategoryScreenState();
@@ -20,8 +21,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
   @override
   void initState() {
     super.initState();
+    // تم إضافة year هنا
     Future.microtask(() =>
-        Provider.of<CategoryProvider>(context, listen: false).fetchCategory(widget.id, refresh: true)
+        Provider.of<CategoryProvider>(context, listen: false)
+            .fetchCategory(widget.id, refresh: true, year: widget.year)
     );
 
     _scrollController.addListener(() {
@@ -29,7 +32,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
         if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
           final provider = Provider.of<CategoryProvider>(context, listen: false);
           if (!provider.isMoreLoading && provider.hasMore) {
-            provider.fetchCategory(widget.id);
+            // تم إضافة year هنا أيضاً للتحميل التلقائي
+            provider.fetchCategory(widget.id, year: widget.year);
           }
         }
       }
@@ -142,7 +146,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       : (provider.hasMore
                       ? GestureDetector(
                     onTap: () {
-                      provider.fetchCategory(widget.id);
+                      // تم إضافة year هنا لزر عرض المزيد
+                      provider.fetchCategory(widget.id, year: widget.year);
                     },
                     child: Container(
                       height: 50,

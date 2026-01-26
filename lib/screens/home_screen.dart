@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../providers/auth_provider.dart';
 import '../providers/home_provider.dart';
 import '../models/home_model.dart';
 import 'details_screen.dart';
@@ -55,13 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // 1. Featured Section (Slider)
               if (data.featured.isNotEmpty)
                 SliverToBoxAdapter(
                   child: _buildFeaturedSection(data.featured),
                 ),
 
-              // 2. Episodes Section (Hide if empty)
               if (data.episodes.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Column(
@@ -73,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              // 3. Movies Section (Hide if empty)
               if (data.movies.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Column(
@@ -85,10 +83,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              // 4. Watch History Section
-              Consumer<WatchHistoryProvider>(
-                  builder: (context, historyProvider, _) {
-                    if (historyProvider.history.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
+              Consumer2<WatchHistoryProvider, AuthProvider>(
+                  builder: (context, historyProvider, auth, _) {
+                    if (!auth.isPremium || historyProvider.history.isEmpty) {
+                      return const SliverToBoxAdapter(child: SizedBox());
+                    }
 
                     return SliverToBoxAdapter(
                       child: Column(
@@ -146,17 +145,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                 return GestureDetector(
                                   onTap: () {
-                                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(
-                                        item.id,
-                                        context,
-                                        title: item.title,
-                                        poster: item.image
-                                    );
-
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                                       content: Text("جاري الاستكمال..."),
                                       duration: Duration(seconds: 1),
                                     ));
+
+                                    Provider.of<DetailsProvider>(context, listen: false).handleAction(
+                                        context,
+                                        item.id,
+                                        isPlay: true,
+                                        title: item.title,
+                                        poster: item.image
+                                    );
                                   },
                                   onLongPress: (){
                                     historyProvider.removeItem(item.id);
@@ -218,7 +218,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
               ),
 
-              // 5. Series Section (Hide if empty)
               if (data.series.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Column(
@@ -231,12 +230,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              // 6. Categories Sections (Hide if empty logic handled inside or by list empty check)
               if (provider.categories.isNotEmpty)
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                      final category = provider.categories[index];
+                      final reorderedList = _interleaveCategories(provider.categories);
+                      final category = reorderedList[index];
                       return CategorySection(category: category);
                     },
                     childCount: provider.categories.length,
@@ -249,6 +248,44 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  List<CategoryItem> _interleaveCategories(List<CategoryItem> allCategories) {
+    if (allCategories.isEmpty) return [];
+
+    List<CategoryItem> moviesList = [];
+    List<CategoryItem> seriesList = [];
+    List<CategoryItem> others = [];
+
+    for (var item in allCategories) {
+      if (item.title.contains("افلام") || item.title.contains("أفلام")) {
+        moviesList.add(item);
+      } else if (item.title.contains("مسلسلات")) {
+        seriesList.add(item);
+      } else {
+        others.add(item);
+      }
+    }
+
+    if (moviesList.isEmpty && seriesList.isEmpty) return allCategories;
+
+    List<CategoryItem> mixed = [];
+    int m = 0;
+    int s = 0;
+
+    while (m < moviesList.length || s < seriesList.length) {
+      if (m < moviesList.length) {
+        mixed.add(moviesList[m]);
+        m++;
+      }
+      if (s < seriesList.length) {
+        mixed.add(seriesList[s]);
+        s++;
+      }
+    }
+
+    mixed.addAll(others);
+    return mixed;
   }
 
   Widget _buildSectionTitle(String title, {VoidCallback? onTap}) {
@@ -482,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             placeholder: (context, url) => Container(color: Colors.grey[900]),
                             errorWidget: (context, url, error) => const Icon(Icons.error),
                           ),
-                          if (item.quality != null)
+                          if (item.quality != null && item.quality!.isNotEmpty && item.quality!.toLowerCase() != "unknown")
                             Positioned(
                               top: 6,
                               left: 6,

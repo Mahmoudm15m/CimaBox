@@ -81,22 +81,23 @@ class WatchHistoryScreen extends StatelessWidget {
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 onDismissed: (_) {
-                  provider.removeItem(item.id); // ID
+                  provider.removeItem(item.id);
                 },
                 child: GestureDetector(
                   onTap: () {
-                    Provider.of<DetailsProvider>(context, listen: false).fetchServers(
-                        item.id,
-                        context,
-                        isEpisode: false,
-                        title: item.title,
-                        poster: item.image
-                    );
-
+                    // تم التعديل هنا لاستخدام handleAction بدلاً من fetchServers
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text("جاري الاستكمال..."),
                       duration: Duration(seconds: 1),
                     ));
+
+                    Provider.of<DetailsProvider>(context, listen: false).handleAction(
+                        context,
+                        item.id,
+                        isPlay: true,
+                        title: item.title,
+                        poster: item.image
+                    );
                   },
                   child: Container(
                     height: 120,

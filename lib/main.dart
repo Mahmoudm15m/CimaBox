@@ -1,4 +1,6 @@
+import 'package:cima_box/providers/auth_provider.dart';
 import 'package:cima_box/providers/downloads_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:provider/provider.dart';
@@ -8,13 +10,16 @@ import 'providers/home_provider.dart';
 import 'providers/search_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/details_provider.dart';
-import 'screens/main_layout.dart';
+import 'providers/actor_provider.dart';
+import 'screens/splash_screen.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'providers/watch_history_provider.dart';
 import 'providers/favorites_provider.dart';
+import 'providers/settings_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   HttpOverrides.global = MyHttpOverrides();
 
   await FlutterDownloader.initialize(
@@ -23,12 +28,12 @@ void main() async {
   );
 
   await AwesomeNotifications().initialize(
-    null,
+    'resource://drawable/notification_icon',
     [
       NotificationChannel(
         channelKey: 'download_channel',
-        channelName: 'HLS Downloads',
-        channelDescription: 'Notification channel for HLS downloads',
+        channelName: 'Download Notifications',
+        channelDescription: 'Notification channel for downloads',
         defaultColor: const Color(0xFFE50914),
         ledColor: Colors.white,
         playSound: false,
@@ -50,6 +55,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => HomeProvider()),
         ChangeNotifierProvider(create: (_) => SearchProvider()),
         ChangeNotifierProvider(create: (_) => DownloadsProvider()),
@@ -57,6 +63,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DetailsProvider()),
         ChangeNotifierProvider(create: (_) => WatchHistoryProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => ActorProvider()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -65,7 +73,7 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.red,
           scaffoldBackgroundColor: const Color(0xFF121212),
         ),
-        home: const MainLayout(),
+        home: const SplashScreen(),
       ),
     );
   }

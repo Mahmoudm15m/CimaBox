@@ -1,8 +1,12 @@
-import 'package:cima_box/screens/downloads_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/settings_provider.dart';
+import 'downloads_screen.dart';
 import 'favorites_screen.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
+import 'settings_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -17,12 +21,20 @@ class _MainLayoutState extends State<MainLayout> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const SearchScreen(),
-    const FavoritesScreen(),
     const DownloadsScreen(),
+    const FavoritesScreen(),
+    const SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      settings.validatePremiumSettings(auth.isPremium);
+    });
+
     return PopScope(
       canPop: _currentIndex == 0,
       onPopInvoked: (didPop) {
@@ -59,13 +71,17 @@ class _MainLayoutState extends State<MainLayout> {
                 label: 'بحث',
               ),
               BottomNavigationBarItem(
+                icon: Icon(Icons.cloud_download_sharp),
+                label: 'التنزيلات',
+              ),
+              BottomNavigationBarItem(
                 icon: Icon(Icons.bookmark_outline),
                 activeIcon: Icon(Icons.bookmark),
                 label: 'قائمتي',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.downloading_sharp),
-                label: 'التنزيلات',
+                icon: Icon(Icons.settings),
+                label: 'الإعدادات',
               ),
             ],
           ),

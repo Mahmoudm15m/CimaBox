@@ -9,17 +9,27 @@ class ApiService {
   static final _fernet = encrypt.Fernet(_key);
   static final _encrypter = encrypt.Encrypter(_fernet);
 
+  static String? userToken;
+
+  static Function(bool isPremium)? onPremiumStateChange;
+
   static Map<String, String> _getSecurityHeaders() {
     String timestamp = (DateTime.now().millisecondsSinceEpoch / 1000).toString();
     var bytes = utf8.encode("$timestamp${getAppSecret()}");
     var digest = sha256.convert(bytes);
 
-    return {
+    Map<String, String> headers = {
       "X-App-Time": timestamp,
       "X-App-Hash": digest.toString(),
       "Content-Type": "application/json",
       "accept": "application/json",
     };
+
+    if (userToken != null) {
+      headers['Authorization'] = 'Bearer $userToken';
+    }
+
+    return headers;
   }
 
   static String _decryptResponse(String encryptedBody) {
@@ -28,6 +38,15 @@ class ApiService {
       return decrypted;
     } catch (e) {
       return "{}";
+    }
+  }
+
+  static void _checkPremiumStatus(dynamic data) {
+    if (data is Map<String, dynamic> && data.containsKey('is_premium')) {
+      bool status = data['is_premium'] == true;
+      if (onPremiumStateChange != null) {
+        onPremiumStateChange!(status);
+      }
     }
   }
 
@@ -40,7 +59,11 @@ class ApiService {
 
       if (response.statusCode == 200) {
         String jsonString = _decryptResponse(response.body);
-        return jsonDecode(jsonString);
+        var data = jsonDecode(jsonString);
+
+        _checkPremiumStatus(data);
+
+        return data;
       } else {
         return null;
       }
@@ -59,7 +82,11 @@ class ApiService {
 
       if (response.statusCode == 200) {
         String jsonString = _decryptResponse(response.body);
-        return jsonDecode(jsonString);
+        var data = jsonDecode(jsonString);
+
+        _checkPremiumStatus(data);
+
+        return data;
       } else {
         return null;
       }

@@ -4,16 +4,68 @@ import 'package:open_file/open_file.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math';
 import '../providers/downloads_provider.dart';
+import '../providers/details_provider.dart';
 import '../models/download_model.dart';
 
-class DownloadsScreen extends StatelessWidget {
+class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
+
+  @override
+  State<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends State<DownloadsScreen> {
+  String? _initializingId;
 
   String _formatBytes(int bytes, {int decimals = 1}) {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
     var i = (log(bytes) / log(1024)).floor();
     return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
+  }
+
+  Future<void> _startPendingDownload(BuildContext context, DownloadItem item, DownloadsProvider provider) async {
+    // التحقق من أن معرف المحتوى موجود
+    if (item.contentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("خطأ: معرف المحتوى مفقود")));
+      return;
+    }
+
+    setState(() {
+      _initializingId = item.id;
+    });
+
+    try {
+      final detailsProvider = Provider.of<DetailsProvider>(context, listen: false);
+
+      // تم إضافة علامة التعجب ! للتأكيد أن القيمة ليست null
+      final linkData = await detailsProvider.fetchLinkForDownload(item.contentId!, item.quality);
+
+      if (linkData != null && mounted) {
+        String url = linkData['url'];
+        Map<String, String> headers = {};
+        if (linkData['headers'] != null) {
+          if (linkData['headers'] is Map) {
+            linkData['headers'].forEach((k, v) {
+              headers[k.toString()] = v.toString();
+            });
+          }
+        }
+        await provider.initializePendingDownload(item.id, url, headers: headers);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل جلب رابط التحميل")));
+        }
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _initializingId = null;
+        });
+      }
+    }
   }
 
   @override
@@ -24,6 +76,15 @@ class DownloadsScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open, color: Colors.white),
+            tooltip: "فتح مجلد التنزيلات",
+            onPressed: () {
+              OpenFile.open("/storage/emulated/0/Download/CimaBox");
+            },
+          ),
+        ],
       ),
       backgroundColor: const Color(0xFF121212),
       body: Consumer<DownloadsProvider>(
@@ -56,6 +117,8 @@ class DownloadsScreen extends StatelessWidget {
   }
 
   Widget _buildDownloadItem(BuildContext context, DownloadItem item, DownloadsProvider provider) {
+    bool isInitializing = _initializingId == item.id;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -92,8 +155,17 @@ class DownloadsScreen extends StatelessWidget {
                   item.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
+                if (item.fileNameLabel.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.fileNameLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                  ),
+                ],
                 const SizedBox(height: 10),
 
                 if (item.status == DownloadStatus.downloading) ...[
@@ -127,7 +199,35 @@ class DownloadsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    "يرجى عدم إغلاق التطبيق أثناء التحميل",
+                    style: TextStyle(color: Colors.amber, fontSize: 10),
+                  ),
 
+                ] else if (item.status == DownloadStatus.paused || item.status == DownloadStatus.pending) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.pause_circle_outline, color: Colors.amber, size: 20),
+                      const SizedBox(width: 5),
+                      const Text("في الانتظار", style: TextStyle(color: Colors.amber, fontSize: 12)),
+                      const Spacer(),
+                      if (isInitializing)
+                        const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      else
+                        IconButton(
+                          onPressed: () {
+                            if (item.url.isEmpty) {
+                              _startPendingDownload(context, item, provider);
+                            } else {
+                              provider.resumeDownload(item.id);
+                            }
+                          },
+                          icon: const Icon(Icons.play_arrow, color: Colors.white),
+                          tooltip: "بدء التحميل",
+                        )
+                    ],
+                  ),
                 ] else if (item.status == DownloadStatus.completed) ...[
                   Row(
                     children: [

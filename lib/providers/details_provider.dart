@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/details_model.dart';
 import '../models/server_model.dart';
 import '../screens/video_player_screen.dart';
+import '../services/dynamic_scraper_service.dart';
 import '../utils/video_scraper.dart';
 import 'downloads_provider.dart';
 import '../services/api_service.dart';
@@ -181,38 +182,6 @@ class DetailsProvider with ChangeNotifier {
     );
   }
 
-  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality) async {
-    try {
-      final qualities = await getServersOnly(contentId);
-      if (qualities == null) return null;
-
-      String targetQuality = _resolveBestQuality(qualities, quality);
-      if (!qualities.containsKey(targetQuality)) return null;
-
-      List<ServerItem> servers = List.from(qualities[targetQuality]!);
-
-      servers.sort((a, b) {
-        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
-        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
-        if (aIsDirect && !bIsDirect) return -1;
-        if (!aIsDirect && bIsDirect) return 1;
-        return 0;
-      });
-
-      Map<String, dynamic>? directLinkData;
-      for (var server in servers) {
-        directLinkData = await _tryExtract(server.link);
-        if (directLinkData != null) break;
-      }
-
-      return directLinkData;
-
-    } catch (e) {
-      print("Error in fetchLinkForDownload: $e");
-      return null;
-    }
-  }
-
   Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster) async {
     String targetQuality = _resolveBestQuality(qualities, prefQuality);
 
@@ -297,6 +266,54 @@ class DetailsProvider with ChangeNotifier {
     return qualities.keys.first;
   }
 
+  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality, BuildContext context) async {
+    try {
+      final qualities = await getServersOnly(contentId);
+      if (qualities == null) return null;
+
+      String targetQuality = _resolveBestQuality(qualities, quality);
+      if (!qualities.containsKey(targetQuality)) return null;
+
+      List<ServerItem> servers = List.from(qualities[targetQuality]!);
+
+      servers.sort((a, b) {
+        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
+        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
+        if (aIsDirect && !bIsDirect) return -1;
+        if (!aIsDirect && bIsDirect) return 1;
+        return 0;
+      });
+
+      Map<String, dynamic>? directLinkData;
+
+      for (var server in servers) {
+        directLinkData = await _tryExtract(server.link);
+        if (directLinkData != null) break;
+      }
+
+      if (directLinkData == null) {
+        DynamicScraperService? dynamicScraper;
+        try {
+          dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
+        } catch (e) {}
+
+        if (dynamicScraper != null) {
+          for (var server in servers) {
+            try {
+              directLinkData = await dynamicScraper.extractLink(server.link);
+              if (directLinkData != null) break;
+            } catch (e) {}
+          }
+        }
+      }
+
+      return directLinkData;
+
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> downloadQuality(BuildContext context, String quality, int contentId, {Map<String, List<ServerItem>>? qualitiesMap, bool autoStart = true, bool showLoading = true}) async {
     final available = qualitiesMap ?? availableQualities;
     if (available == null || !available.containsKey(quality)) return;
@@ -321,16 +338,32 @@ class DetailsProvider with ChangeNotifier {
       });
 
       Map<String, dynamic>? directLinkData;
+
       for (var server in servers) {
         directLinkData = await _tryExtract(server.link);
         if (directLinkData != null) break;
+      }
+
+      if (directLinkData == null) {
+        DynamicScraperService? dynamicScraper;
+        try {
+          dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
+        } catch (e) {}
+
+        if (dynamicScraper != null) {
+          for (var server in servers) {
+            try {
+              directLinkData = await dynamicScraper.extractLink(server.link);
+              if (directLinkData != null) break;
+            } catch (e) {}
+          }
+        }
       }
 
       if (showLoading && context.mounted) Navigator.pop(context);
 
       if (directLinkData != null && context.mounted) {
         String finalUrl = directLinkData['url'];
-
         Map<String, String> headers = {};
         if (directLinkData['headers'] != null) {
           if (directLinkData['headers'] is Map) {

@@ -42,7 +42,11 @@ class _DetailsContentState extends State<_DetailsContent> {
       final isDescending = Provider.of<SettingsProvider>(context, listen: false).sortDescending;
       Provider.of<DetailsProvider>(context, listen: false).fetchDetails(widget.id, sortDescending: isDescending);
     });
-    AdManager.initializeAds(context);
+
+    final isPremium = Provider.of<AuthProvider>(context, listen: false).isPremium;
+    if (!isPremium) {
+      AdManager.initializeAds(context);
+    }
   }
 
   void _showPremiumDialog() {

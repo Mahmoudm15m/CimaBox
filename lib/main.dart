@@ -1,5 +1,6 @@
 import 'package:cima_box/providers/auth_provider.dart';
 import 'package:cima_box/providers/downloads_provider.dart';
+import 'package:cima_box/services/dynamic_scraper_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
@@ -65,6 +66,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => ActorProvider()),
+        Provider<DynamicScraperService>(
+          create: (_) => DynamicScraperService()..init(),
+          dispose: (_, service) => service.dispose(),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

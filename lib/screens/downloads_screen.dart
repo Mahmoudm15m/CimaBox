@@ -38,8 +38,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     try {
       final detailsProvider = Provider.of<DetailsProvider>(context, listen: false);
 
-      // تم إضافة علامة التعجب ! للتأكيد أن القيمة ليست null
-      final linkData = await detailsProvider.fetchLinkForDownload(item.contentId!, item.quality);
+      final linkData = await detailsProvider.fetchLinkForDownload(item.contentId!, item.quality, context);
 
       if (linkData != null && mounted) {
         String url = linkData['url'];

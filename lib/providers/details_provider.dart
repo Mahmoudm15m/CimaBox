@@ -136,72 +136,135 @@ class DetailsProvider with ChangeNotifier {
     }
   }
 
-  void downloadSeason(BuildContext context) {
-    if (details == null || details!.seasons.isEmpty) return;
-
-    final episodes = details!.seasons[selectedSeasonIndex].episodes;
-    if (episodes.isEmpty) return;
-
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    String prefQuality = settings.preferredDownloadQuality;
-
-    final downloadsProvider = Provider.of<DownloadsProvider>(context, listen: false);
-
-    String mainTitle = details?.title ?? "مسلسل";
-    mainTitle = mainTitle.trim();
-    String mainTitleFile = mainTitle.replaceAll(RegExp(r'[^\w\s\u0600-\u06FF-]'), '').replaceAll(' ', '-');
-    String sNum = (selectedSeasonIndex + 1).toString().padLeft(2, '0');
-
-    final reversedEpisodes = episodes.reversed.toList();
-
-    for (var episode in reversedEpisodes) {
-      String readableTitle = "$mainTitle : الحلقة ${episode.number}";
-      String eNum = episode.number.padLeft(2, '0');
-      String fileNameLabel = "$mainTitleFile-SE$sNum-EP$eNum-${prefQuality}p.mp4";
-
-      downloadsProvider.addPendingDownload(
-          contentId: episode.id,
-          quality: prefQuality,
-          title: readableTitle,
-          fileNameLabel: fileNameLabel,
-          image: details?.poster ?? ""
-      );
+  List<String> _getPriorityList(String preferred, bool isPremium, {bool isDownload = false}) {
+    List<String> order;
+    if (preferred == '1080') {
+      order = ['1080', '720', '480', '360', '240'];
+    } else if (preferred == '720') {
+      order = ['720', '1080', '480', '360', '240'];
+    } else if (preferred == '480') {
+      order = ['480', '360', '720', '240', '1080'];
+    } else {
+      order = ['360', '240', '480', '720', '1080'];
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("تم إضافة ${episodes.length} حلقات إلى التنزيلات (في الانتظار)"),
-          action: SnackBarAction(
-            label: 'عرض',
-            textColor: Colors.redAccent,
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (c) => const DownloadsScreen()));
-            },
-          ),
-        )
+    if (isDownload && !isPremium) {
+      order.remove('1080');
+    }
+
+    return order;
+  }
+
+  Future<void> _autoDownload(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!auth.isPremium) {
+      await AdManager.showInterstitialAd(context);
+    }
+
+    List<String> priorities = _getPriorityList(prefQuality, auth.isPremium, isDownload: true);
+
+    bool started = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
     );
+
+    for (var q in priorities) {
+      if (qualities.containsKey(q)) {
+        var linkData = await fetchLinkForDownload(contentId, q, context);
+
+        if (linkData != null) {
+          if (context.mounted) Navigator.pop(context);
+
+          if (context.mounted) {
+            downloadQuality(context, q, contentId, qualitiesMap: qualities, preFetchedData: linkData, showLoading: false);
+
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: const Color(0xFF333333),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                margin: const EdgeInsets.all(16),
+                duration: const Duration(seconds: 3),
+                content: Row(
+                  children: [
+                    const Icon(Icons.downloading, color: Colors.greenAccent, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("جاري تحميل $q", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          const Text("يرجى عدم إغلاق التطبيق", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                action: SnackBarAction(
+                  label: 'عرض',
+                  textColor: Colors.redAccent,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const DownloadsScreen()),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+          started = true;
+          break;
+        }
+      }
+    }
+
+    if (!started && context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل استخراج رابط التحميل لجميع الجودات المتاحة")));
+    }
   }
 
   Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster) async {
-    String targetQuality = _resolveBestQuality(qualities, prefQuality);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
 
-    int targetSeasonIdx = 0;
-    int targetEpisodeIdx = 0;
+    if (!auth.isPremium) {
+      await AdManager.showInterstitialAd(context);
+    }
 
-    if (details != null && details!.seasons.isNotEmpty) {
-      bool found = false;
-      for (int s = 0; s < details!.seasons.length; s++) {
-        for (int e = 0; e < details!.seasons[s].episodes.length; e++) {
-          if (details!.seasons[s].episodes[e].id == contentId) {
-            targetSeasonIdx = s;
-            targetEpisodeIdx = e;
-            selectedSeasonIndex = s;
-            found = true;
-            break;
-          }
+    List<String> priorities = _getPriorityList(prefQuality, auth.isPremium, isDownload: false);
+    String targetQuality = priorities.first;
+    bool foundWorking = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+    );
+
+    for (var q in priorities) {
+      if (qualities.containsKey(q)) {
+        var linkData = await fetchLinkForDownload(contentId, q, context);
+        if (linkData != null) {
+          targetQuality = q;
+          foundWorking = true;
+          break;
         }
-        if (found) break;
       }
+    }
+
+    if (context.mounted) Navigator.pop(context);
+
+    if (!foundWorking) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("عذراً، لا توجد سيرفرات تعمل حالياً")));
+      return;
     }
 
     DetailsModel? finalDetails = details;
@@ -219,102 +282,41 @@ class DetailsProvider with ChangeNotifier {
       );
     }
 
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (!auth.isPremium) {
-      await AdManager.showInterstitialAd(context);
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ListenableProvider.value(
-          value: this,
-          child: VideoPlayerScreen(
-            qualities: qualities,
-            startQuality: targetQuality,
-            detailsModel: finalDetails,
-            currentSeasonIndex: targetSeasonIdx,
-            currentEpisodeIndex: targetEpisodeIdx,
-            sourceId: contentId,
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ListenableProvider.value(
+            value: this,
+            child: VideoPlayerScreen(
+              qualities: qualities,
+              startQuality: targetQuality,
+              detailsModel: finalDetails,
+              currentSeasonIndex: selectedSeasonIndex,
+              currentEpisodeIndex: isEpisode ? _getEpisodeIndex(contentId) : 0,
+              sourceId: contentId,
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
 
-  Future<void> _autoDownload(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId) async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (!auth.isPremium) {
-      await AdManager.showInterstitialAd(context);
+      if (targetQuality != prefQuality) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("تم التشغيل بجودة $targetQuality لعدم توفر $prefQuality"),
+          duration: const Duration(seconds: 2),
+        ));
+      }
     }
-
-    String targetQuality = _resolveBestQuality(qualities, prefQuality);
-    downloadQuality(context, targetQuality, contentId, qualitiesMap: qualities);
   }
 
-  String _resolveBestQuality(Map<String, List<ServerItem>> qualities, String pref) {
-    if (qualities.containsKey(pref)) return pref;
-
-    List<String> priority;
-    if (pref == '1080') priority = ['1080', '720', '480', '360'];
-    else if (pref == '720') priority = ['720', '1080', '480', '360'];
-    else priority = ['480', '360', '720', '1080'];
-
-    for (var q in priority) {
-      if (qualities.containsKey(q)) return q;
-    }
-    return qualities.keys.first;
-  }
-
-  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality, BuildContext context) async {
+  int _getEpisodeIndex(int episodeId) {
+    if (details == null || details!.seasons.isEmpty) return 0;
     try {
-      final qualities = await getServersOnly(contentId);
-      if (qualities == null) return null;
-
-      String targetQuality = _resolveBestQuality(qualities, quality);
-      if (!qualities.containsKey(targetQuality)) return null;
-
-      List<ServerItem> servers = List.from(qualities[targetQuality]!);
-
-      servers.sort((a, b) {
-        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
-        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
-        if (aIsDirect && !bIsDirect) return -1;
-        if (!aIsDirect && bIsDirect) return 1;
-        return 0;
-      });
-
-      Map<String, dynamic>? directLinkData;
-
-      for (var server in servers) {
-        directLinkData = await _tryExtract(server.link);
-        if (directLinkData != null) break;
-      }
-
-      if (directLinkData == null) {
-        DynamicScraperService? dynamicScraper;
-        try {
-          dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
-        } catch (e) {}
-
-        if (dynamicScraper != null) {
-          for (var server in servers) {
-            try {
-              directLinkData = await dynamicScraper.extractLink(server.link);
-              if (directLinkData != null) break;
-            } catch (e) {}
-          }
-        }
-      }
-
-      return directLinkData;
-
-    } catch (e) {
-      return null;
-    }
+      return details!.seasons[selectedSeasonIndex].episodes.indexWhere((e) => e.id == episodeId);
+    } catch (_) { return 0; }
   }
 
-  Future<void> downloadQuality(BuildContext context, String quality, int contentId, {Map<String, List<ServerItem>>? qualitiesMap, bool autoStart = true, bool showLoading = true}) async {
+  Future<void> downloadQuality(BuildContext context, String quality, int contentId, {Map<String, List<ServerItem>>? qualitiesMap, bool autoStart = true, bool showLoading = true, Map<String, dynamic>? preFetchedData}) async {
     final available = qualitiesMap ?? availableQualities;
     if (available == null || !available.containsKey(quality)) return;
 
@@ -337,25 +339,27 @@ class DetailsProvider with ChangeNotifier {
         return 0;
       });
 
-      Map<String, dynamic>? directLinkData;
-
-      for (var server in servers) {
-        directLinkData = await _tryExtract(server.link);
-        if (directLinkData != null) break;
-      }
+      Map<String, dynamic>? directLinkData = preFetchedData;
 
       if (directLinkData == null) {
-        DynamicScraperService? dynamicScraper;
-        try {
-          dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
-        } catch (e) {}
+        for (var server in servers) {
+          directLinkData = await _tryExtract(server.link);
+          if (directLinkData != null) break;
+        }
 
-        if (dynamicScraper != null) {
-          for (var server in servers) {
-            try {
-              directLinkData = await dynamicScraper.extractLink(server.link);
-              if (directLinkData != null) break;
-            } catch (e) {}
+        if (directLinkData == null) {
+          DynamicScraperService? dynamicScraper;
+          try {
+            dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
+          } catch (e) {}
+
+          if (dynamicScraper != null) {
+            for (var server in servers) {
+              try {
+                directLinkData = await dynamicScraper.extractLink(server.link);
+                if (directLinkData != null) break;
+              } catch (e) {}
+            }
           }
         }
       }
@@ -457,6 +461,114 @@ class DetailsProvider with ChangeNotifier {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("حدث خطأ: $e")));
       }
+    }
+  }
+
+  void downloadSeason(BuildContext context) {
+    if (details == null || details!.seasons.isEmpty) return;
+
+    final episodes = details!.seasons[selectedSeasonIndex].episodes;
+    if (episodes.isEmpty) return;
+
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    String prefQuality = settings.preferredDownloadQuality;
+
+    final downloadsProvider = Provider.of<DownloadsProvider>(context, listen: false);
+
+    String mainTitle = details?.title ?? "مسلسل";
+    mainTitle = mainTitle.trim();
+    String mainTitleFile = mainTitle.replaceAll(RegExp(r'[^\w\s\u0600-\u06FF-]'), '').replaceAll(' ', '-');
+    String sNum = (selectedSeasonIndex + 1).toString().padLeft(2, '0');
+
+    final reversedEpisodes = episodes.reversed.toList();
+
+    for (var episode in reversedEpisodes) {
+      String readableTitle = "$mainTitle : الحلقة ${episode.number}";
+      String eNum = episode.number.padLeft(2, '0');
+      String fileNameLabel = "$mainTitleFile-SE$sNum-EP$eNum-${prefQuality}p.mp4";
+
+      downloadsProvider.addPendingDownload(
+          contentId: episode.id,
+          quality: prefQuality,
+          title: readableTitle,
+          fileNameLabel: fileNameLabel,
+          image: details?.poster ?? ""
+      );
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("تم إضافة ${episodes.length} حلقات إلى التنزيلات (في الانتظار)"),
+          action: SnackBarAction(
+            label: 'عرض',
+            textColor: Colors.redAccent,
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (c) => const DownloadsScreen()));
+            },
+          ),
+        )
+    );
+  }
+
+  String _resolveBestQuality(Map<String, List<ServerItem>> qualities, String pref) {
+    if (qualities.containsKey(pref)) return pref;
+
+    List<String> priority;
+    if (pref == '1080') priority = ['1080', '720', '480', '360'];
+    else if (pref == '720') priority = ['720', '1080', '480', '360'];
+    else priority = ['480', '360', '720', '1080'];
+
+    for (var q in priority) {
+      if (qualities.containsKey(q)) return q;
+    }
+    return qualities.keys.first;
+  }
+
+  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality, BuildContext context) async {
+    try {
+      final qualities = await getServersOnly(contentId);
+      if (qualities == null) return null;
+
+      String targetQuality = _resolveBestQuality(qualities, quality);
+      if (!qualities.containsKey(targetQuality)) return null;
+
+      List<ServerItem> servers = List.from(qualities[targetQuality]!);
+
+      servers.sort((a, b) {
+        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
+        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
+        if (aIsDirect && !bIsDirect) return -1;
+        if (!aIsDirect && bIsDirect) return 1;
+        return 0;
+      });
+
+      Map<String, dynamic>? directLinkData;
+
+      for (var server in servers) {
+        directLinkData = await _tryExtract(server.link);
+        if (directLinkData != null) break;
+      }
+
+      if (directLinkData == null) {
+        DynamicScraperService? dynamicScraper;
+        try {
+          dynamicScraper = Provider.of<DynamicScraperService>(context, listen: false);
+        } catch (e) {}
+
+        if (dynamicScraper != null) {
+          for (var server in servers) {
+            try {
+              directLinkData = await dynamicScraper.extractLink(server.link);
+              if (directLinkData != null) break;
+            } catch (e) {}
+          }
+        }
+      }
+
+      return directLinkData;
+
+    } catch (e) {
+      return null;
     }
   }
 

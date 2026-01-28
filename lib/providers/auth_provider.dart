@@ -31,12 +31,21 @@ class AuthProvider with ChangeNotifier {
       if (user != null) {
         String? token = await user.getIdToken();
         ApiService.userToken = token;
+        checkPremiumStatus();
       } else {
         ApiService.userToken = null;
         isPremium = false;
       }
       notifyListeners();
     });
+  }
+
+  Future<void> checkPremiumStatus() async {
+    try {
+      await ApiService.get('https://ar.fastmovies.site/arb/home');
+    } catch (e) {
+      print("Error checking premium status: $e");
+    }
   }
 
   Future<void> signInWithGoogle() async {
@@ -59,6 +68,8 @@ class AuthProvider with ChangeNotifier {
       );
 
       await _auth.signInWithCredential(credential);
+
+      await checkPremiumStatus();
 
     } catch (e) {
       print("Google Sign In Error: $e");

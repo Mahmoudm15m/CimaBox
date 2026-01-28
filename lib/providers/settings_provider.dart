@@ -71,11 +71,6 @@ class SettingsProvider with ChangeNotifier {
     if (!isPremium) {
       bool hasChanged = false;
 
-      if (preferredWatchQuality == '1080') {
-        preferredWatchQuality = '720';
-        hasChanged = true;
-      }
-
       if (preferredDownloadQuality == '1080') {
         preferredDownloadQuality = '720';
         hasChanged = true;
@@ -87,4 +82,5 @@ class SettingsProvider with ChangeNotifier {
       }
     }
   }
+
 }

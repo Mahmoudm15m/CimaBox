@@ -58,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        int latestVersion = int.tryParse(data['version'].toString()) ?? 1;
+        int latestVersion = int.tryParse(data['version'].toString()) ?? 2;
 
         if (latestVersion > _currentVersion) {
           setState(() {

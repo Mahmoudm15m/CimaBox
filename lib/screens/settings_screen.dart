@@ -90,6 +90,46 @@ class SettingsScreen extends StatelessWidget {
 
               const SizedBox(height: 25),
 
+              _buildSectionHeader("نظام التشغيل"),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                ),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: Colors.redAccent,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                      secondary: const Icon(Icons.play_circle_outline, color: Colors.grey),
+                      title: const Text("تفضيل سيرفرات HLS للمشاهدة", style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        settings.preferHlsWatching ? "الأولوية لسيرفرات البث (Stream)" : "الأولوية للسيرفرات المباشرة (Direct)",
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      ),
+                      value: settings.preferHlsWatching,
+                      onChanged: (val) => settings.setPreferHlsWatching(val),
+                    ),
+                    Divider(color: Colors.white.withOpacity(0.05), height: 1),
+                    SwitchListTile(
+                      activeColor: Colors.redAccent,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                      secondary: const Icon(Icons.file_download_outlined, color: Colors.grey),
+                      title: const Text("تفضيل سيرفرات HLS للتحميل", style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        settings.preferHlsDownload ? "تحويل HLS أثناء التحميل" : "الأولوية لملفات MP4 المباشرة (أسرع)",
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      ),
+                      value: settings.preferHlsDownload,
+                      onChanged: (val) => settings.setPreferHlsDownload(val),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
               _buildSectionHeader("التواصل والدعم"),
               _buildTelegramCard(context),
 

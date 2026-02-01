@@ -1,4 +1,4 @@
-enum DownloadStatus { pending, downloading, paused, completed, failed }
+enum DownloadStatus { pending, downloading, paused, completed, failed, canceled }
 enum DownloadType { direct, hls }
 
 class DownloadItem {

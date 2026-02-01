@@ -25,7 +25,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _startPendingDownload(BuildContext context, DownloadItem item, DownloadsProvider provider) async {
-    // التحقق من أن معرف المحتوى موجود
     if (item.contentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("خطأ: معرف المحتوى مفقود")));
       return;
@@ -37,7 +36,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     try {
       final detailsProvider = Provider.of<DetailsProvider>(context, listen: false);
-
       final linkData = await detailsProvider.fetchLinkForDownload(item.contentId!, item.quality, context);
 
       if (linkData != null && mounted) {
@@ -117,6 +115,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Widget _buildDownloadItem(BuildContext context, DownloadItem item, DownloadsProvider provider) {
     bool isInitializing = _initializingId == item.id;
+    double displayProgress = item.progress;
+    if (displayProgress < 0) displayProgress = 0;
+    if (displayProgress > 1) displayProgress = 1;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -167,16 +168,16 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ],
                 const SizedBox(height: 10),
 
-                if (item.status == DownloadStatus.downloading) ...[
+                if (item.status == DownloadStatus.downloading || item.status == DownloadStatus.paused) ...[
                   TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0, end: item.progress),
+                    tween: Tween<double>(begin: 0, end: displayProgress),
                     duration: const Duration(milliseconds: 800),
                     curve: Curves.easeOut,
                     builder: (context, value, _) {
                       return LinearProgressIndicator(
                         value: value,
                         backgroundColor: Colors.grey[800],
-                        color: Colors.redAccent,
+                        color: item.status == DownloadStatus.paused ? Colors.amber : Colors.redAccent,
                         minHeight: 4,
                       );
                     },
@@ -187,7 +188,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "${(item.progress * 100).toStringAsFixed(0)}%",
+                        "${(displayProgress * 100).toStringAsFixed(0)}%",
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                       Text(
@@ -199,30 +200,55 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    "يرجى عدم إغلاق التطبيق أثناء التحميل",
-                    style: TextStyle(color: Colors.amber, fontSize: 10),
-                  ),
 
-                ] else if (item.status == DownloadStatus.paused || item.status == DownloadStatus.pending) ...[
                   Row(
                     children: [
-                      const Icon(Icons.pause_circle_outline, color: Colors.amber, size: 20),
+                      if (item.status == DownloadStatus.downloading)
+                        SizedBox(
+                          height: 35,
+                          child: TextButton.icon(
+                            onPressed: () => provider.pauseDownload(item.id),
+                            icon: const Icon(Icons.pause, color: Colors.amber, size: 18),
+                            label: const Text("إيقاف مؤقت", style: TextStyle(color: Colors.amber, fontSize: 12)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              backgroundColor: Colors.amber.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            ),
+                          ),
+                        ),
+                      if (item.status == DownloadStatus.paused)
+                        SizedBox(
+                          height: 35,
+                          child: TextButton.icon(
+                            onPressed: () => provider.resumeDownload(item.id),
+                            icon: const Icon(Icons.play_arrow, color: Colors.green, size: 18),
+                            label: const Text("استكمال", style: TextStyle(color: Colors.green, fontSize: 12)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              backgroundColor: Colors.green.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+
+                ] else if (item.status == DownloadStatus.pending) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time, color: Colors.grey, size: 20),
                       const SizedBox(width: 5),
-                      const Text("في الانتظار", style: TextStyle(color: Colors.amber, fontSize: 12)),
+                      const Text("في الانتظار", style: TextStyle(color: Colors.grey, fontSize: 12)),
                       const Spacer(),
                       if (isInitializing)
                         const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       else
                         IconButton(
                           onPressed: () {
-                            if (item.url.isEmpty) {
-                              _startPendingDownload(context, item, provider);
-                            } else {
-                              provider.resumeDownload(item.id);
-                            }
+                            _startPendingDownload(context, item, provider);
                           },
-                          icon: const Icon(Icons.play_arrow, color: Colors.white),
+                          icon: const Icon(Icons.download, color: Colors.white),
                           tooltip: "بدء التحميل",
                         )
                     ],
@@ -249,7 +275,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               if (item.status == DownloadStatus.completed)
                 IconButton(
                   icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-                  onPressed: () => OpenFile.open(item.savedPath),
+                  onPressed: () => provider.playDownloadedVideo(item.url),
                 ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),

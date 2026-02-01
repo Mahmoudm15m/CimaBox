@@ -8,6 +8,9 @@ class SettingsProvider with ChangeNotifier {
   String preferredDownloadQuality = '720';
   bool sortDescending = true;
 
+  bool preferHlsWatching = true;
+  bool preferHlsDownload = false;
+
   final String _fileName = "settings.json";
 
   SettingsProvider() {
@@ -28,6 +31,10 @@ class SettingsProvider with ChangeNotifier {
         preferredWatchQuality = data['watch_quality'] ?? '720';
         preferredDownloadQuality = data['download_quality'] ?? '720';
         sortDescending = data['sort_descending'] ?? true;
+
+        preferHlsWatching = data['prefer_hls_watching'] ?? true;
+        preferHlsDownload = data['prefer_hls_download'] ?? false;
+
         notifyListeners();
       }
     } catch (e) {
@@ -42,6 +49,8 @@ class SettingsProvider with ChangeNotifier {
         'watch_quality': preferredWatchQuality,
         'download_quality': preferredDownloadQuality,
         'sort_descending': sortDescending,
+        'prefer_hls_watching': preferHlsWatching,
+        'prefer_hls_download': preferHlsDownload,
       });
       await file.writeAsString(jsonStr);
     } catch (e) {
@@ -67,6 +76,18 @@ class SettingsProvider with ChangeNotifier {
     _saveSettings();
   }
 
+  void setPreferHlsWatching(bool value) {
+    preferHlsWatching = value;
+    notifyListeners();
+    _saveSettings();
+  }
+
+  void setPreferHlsDownload(bool value) {
+    preferHlsDownload = value;
+    notifyListeners();
+    _saveSettings();
+  }
+
   void validatePremiumSettings(bool isPremium) {
     if (!isPremium) {
       bool hasChanged = false;
@@ -82,5 +103,4 @@ class SettingsProvider with ChangeNotifier {
       }
     }
   }
-
 }

@@ -17,6 +17,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'providers/watch_history_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/settings_provider.dart';
+import 'package:background_downloader/background_downloader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,8 @@ void main() async {
       debug: true,
       ignoreSsl: true
   );
+
+  await FileDownloader().trackTasks();
 
   await AwesomeNotifications().initialize(
     'resource://drawable/notification_icon',

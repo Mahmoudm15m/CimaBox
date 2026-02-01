@@ -120,9 +120,9 @@ class DetailsProvider with ChangeNotifier {
           final settings = Provider.of<SettingsProvider>(context, listen: false);
 
           if (isPlay) {
-            _autoPlay(context, qualities, settings.preferredWatchQuality, contentId, isEpisode, title, poster);
+            _autoPlay(context, qualities, settings.preferredWatchQuality, contentId, isEpisode, title, poster, settings.preferHlsWatching);
           } else {
-            _autoDownload(context, qualities, settings.preferredDownloadQuality, contentId);
+            _autoDownload(context, qualities, settings.preferredDownloadQuality, contentId, settings.preferHlsDownload);
           }
         }
       } else {
@@ -155,7 +155,7 @@ class DetailsProvider with ChangeNotifier {
     return order;
   }
 
-  Future<void> _autoDownload(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId) async {
+  Future<void> _autoDownload(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool preferHls) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
     if (!auth.isPremium) {
@@ -174,13 +174,13 @@ class DetailsProvider with ChangeNotifier {
 
     for (var q in priorities) {
       if (qualities.containsKey(q)) {
-        var linkData = await fetchLinkForDownload(contentId, q, context);
+        var linkData = await fetchLinkForDownload(contentId, q, context, preferHls: preferHls);
 
         if (linkData != null) {
           if (context.mounted) Navigator.pop(context);
 
           if (context.mounted) {
-            downloadQuality(context, q, contentId, qualitiesMap: qualities, preFetchedData: linkData, showLoading: false);
+            downloadQuality(context, q, contentId, qualitiesMap: qualities, preFetchedData: linkData, showLoading: false, preferHls: preferHls);
 
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
@@ -232,7 +232,7 @@ class DetailsProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster) async {
+  Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster, bool preferHls) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
     if (!auth.isPremium) {
@@ -251,7 +251,7 @@ class DetailsProvider with ChangeNotifier {
 
     for (var q in priorities) {
       if (qualities.containsKey(q)) {
-        var linkData = await fetchLinkForDownload(contentId, q, context);
+        var linkData = await fetchLinkForDownload(contentId, q, context, preferHls: preferHls);
         if (linkData != null) {
           targetQuality = q;
           foundWorking = true;
@@ -316,7 +316,7 @@ class DetailsProvider with ChangeNotifier {
     } catch (_) { return 0; }
   }
 
-  Future<void> downloadQuality(BuildContext context, String quality, int contentId, {Map<String, List<ServerItem>>? qualitiesMap, bool autoStart = true, bool showLoading = true, Map<String, dynamic>? preFetchedData}) async {
+  Future<void> downloadQuality(BuildContext context, String quality, int contentId, {Map<String, List<ServerItem>>? qualitiesMap, bool autoStart = true, bool showLoading = true, Map<String, dynamic>? preFetchedData, bool preferHls = false}) async {
     final available = qualitiesMap ?? availableQualities;
     if (available == null || !available.containsKey(quality)) return;
 
@@ -332,10 +332,16 @@ class DetailsProvider with ChangeNotifier {
       List<ServerItem> servers = List.from(available[quality]!);
 
       servers.sort((a, b) {
-        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
-        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
-        if (aIsDirect && !bIsDirect) return -1;
-        if (!aIsDirect && bIsDirect) return 1;
+        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles') || a.link.contains('g9r6') || a.link.contains('bysezejataos');
+        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles') || b.link.contains('g9r6') || b.link.contains('bysezejataos');
+
+        if (preferHls) {
+          if (!aIsDirect && bIsDirect) return -1;
+          if (aIsDirect && !bIsDirect) return 1;
+        } else {
+          if (aIsDirect && !bIsDirect) return -1;
+          if (!aIsDirect && bIsDirect) return 1;
+        }
         return 0;
       });
 
@@ -406,7 +412,6 @@ class DetailsProvider with ChangeNotifier {
           details?.poster ?? "",
           headers: headers,
           fileName: fileNameBase,
-          autoStart: autoStart,
         );
 
         if (autoStart && showLoading) {
@@ -524,7 +529,7 @@ class DetailsProvider with ChangeNotifier {
     return qualities.keys.first;
   }
 
-  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality, BuildContext context) async {
+  Future<Map<String, dynamic>?> fetchLinkForDownload(int contentId, String quality, BuildContext context, {bool preferHls = false}) async {
     try {
       final qualities = await getServersOnly(contentId);
       if (qualities == null) return null;
@@ -535,10 +540,16 @@ class DetailsProvider with ChangeNotifier {
       List<ServerItem> servers = List.from(qualities[targetQuality]!);
 
       servers.sort((a, b) {
-        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles');
-        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles');
-        if (aIsDirect && !bIsDirect) return -1;
-        if (!aIsDirect && bIsDirect) return 1;
+        bool aIsDirect = a.link.contains('reviewrate') || a.link.contains('savefiles') || a.link.contains('g9r6') || a.link.contains('bysezejataos');
+        bool bIsDirect = b.link.contains('reviewrate') || b.link.contains('savefiles') || b.link.contains('g9r6') || b.link.contains('bysezejataos');
+
+        if (preferHls) {
+          if (!aIsDirect && bIsDirect) return -1;
+          if (aIsDirect && !bIsDirect) return 1;
+        } else {
+          if (aIsDirect && !bIsDirect) return -1;
+          if (!aIsDirect && bIsDirect) return 1;
+        }
         return 0;
       });
 

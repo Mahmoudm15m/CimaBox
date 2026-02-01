@@ -52,5 +52,12 @@ flutter {
 dependencies {
     implementation("androidx.work:work-runtime:2.9.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.firebase:firebase-analytics")
+    implementation("androidx.media3:media3-exoplayer:1.2.0")
+    implementation("androidx.media3:media3-exoplayer-dash:1.2.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.2.0")
+    implementation("androidx.media3:media3-ui:1.2.0")
+    implementation("androidx.media3:media3-session:1.2.0")
+    implementation("androidx.media3:media3-datasource-cronet:1.2.0")
 }

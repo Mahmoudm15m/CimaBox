@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -40,8 +43,39 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForUpdates();
+      _checkPermissions();
     });
+  }
+
+  Future<void> _checkPermissions() async {
+    bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
+
+    if (!isAllowed) {
+      await AwesomeNotifications().requestPermissionToSendNotifications(
+        channelKey: 'download_channel',
+        permissions: [
+          NotificationPermission.Alert,
+          NotificationPermission.Sound,
+          NotificationPermission.Badge,
+          NotificationPermission.Vibration,
+          NotificationPermission.Light,
+        ],
+      );
+
+
+      isAllowed = await AwesomeNotifications().isNotificationAllowed();
+
+      if (!isAllowed) {
+        if (Platform.isAndroid) {
+          SystemNavigator.pop();
+        } else {
+          exit(0);
+        }
+        return;
+      }
+    }
+
+    _checkForUpdates();
   }
 
   @override

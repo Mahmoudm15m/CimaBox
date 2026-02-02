@@ -1,9 +1,9 @@
 import 'package:cima_box/providers/auth_provider.dart';
 import 'package:cima_box/providers/downloads_provider.dart';
+import 'package:cima_box/services/cache_helper.dart';
 import 'package:cima_box/services/dynamic_scraper_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'utils/video_scraper.dart';
@@ -17,19 +17,13 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'providers/watch_history_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/settings_provider.dart';
-import 'package:background_downloader/background_downloader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await CacheHelper.init();
   await Firebase.initializeApp();
   HttpOverrides.global = MyHttpOverrides();
 
-  await FlutterDownloader.initialize(
-      debug: true,
-      ignoreSsl: true
-  );
-
-  await FileDownloader().trackTasks();
 
   await AwesomeNotifications().initialize(
     'resource://drawable/notification_icon',

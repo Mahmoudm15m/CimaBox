@@ -1,78 +1,74 @@
-enum DownloadStatus { pending, downloading, paused, completed, failed, canceled }
+import 'package:flutter/material.dart';
+
+enum DownloadStatus { pending, paused, downloading, completed, failed }
 enum DownloadType { direct, hls }
 
 class DownloadItem {
-  String id;
-  int? contentId;
-  String url;
-  String title;
-  String fileNameLabel;
-  String image;
-  String? savedPath;
+  final String id;
+  final String url;
+  final String title;
+  final String image;
+  final String fileNameLabel;
   DownloadStatus status;
-  DownloadType type;
   double progress;
   int downloadedBytes;
   int totalBytes;
-  int? taskId;
-  String? downloaderTaskId;
-  String quality;
-  Map<String, String>? headers;
+  final DownloadType type;
+  final int? contentId;
+  final String quality;
+  String? exportedPath;
 
   DownloadItem({
     required this.id,
-    this.contentId,
     required this.url,
     required this.title,
-    this.fileNameLabel = '',
     required this.image,
-    this.savedPath,
-    this.status = DownloadStatus.pending,
-    this.type = DownloadType.direct,
-    this.progress = 0.0,
+    required this.fileNameLabel,
+    required this.status,
+    required this.progress,
     this.downloadedBytes = 0,
     this.totalBytes = 0,
-    this.taskId,
-    this.downloaderTaskId,
-    this.quality = '',
-    this.headers,
+    required this.type,
+    this.contentId,
+    this.quality = "",
+    this.exportedPath,
   });
 
   factory DownloadItem.fromJson(Map<String, dynamic> json) {
     return DownloadItem(
-      id: json['id'] ?? '',
-      contentId: json['contentId'],
-      url: json['url'] ?? '',
-      title: json['title'] ?? '',
-      fileNameLabel: json['fileNameLabel'] ?? '',
-      image: json['image'] ?? '',
-      savedPath: json['savedPath'],
-      status: DownloadStatus.values[json['status'] ?? 0],
-      type: DownloadType.values[json['type'] ?? 0],
+      id: json['id'],
+      url: json['url'],
+      title: json['title'],
+      image: json['image'] ?? "",
+      fileNameLabel: json['fileNameLabel'] ?? "",
+      status: json['exportedPath'] != null
+          ? DownloadStatus.completed
+          : DownloadStatus.values[json['status'] ?? 0],
       progress: json['progress'] ?? 0.0,
       downloadedBytes: json['downloadedBytes'] ?? 0,
       totalBytes: json['totalBytes'] ?? 0,
-      quality: json['quality'] ?? '',
-      headers: json['headers'] != null ? Map<String, String>.from(json['headers']) : null,
+      type: DownloadType.values[json['type'] ?? 0],
+      contentId: json['contentId'],
+      quality: json['quality'] ?? "",
+      exportedPath: json['exportedPath'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'contentId': contentId,
       'url': url,
       'title': title,
-      'fileNameLabel': fileNameLabel,
       'image': image,
-      'savedPath': savedPath,
+      'fileNameLabel': fileNameLabel,
       'status': status.index,
-      'type': type.index,
       'progress': progress,
       'downloadedBytes': downloadedBytes,
       'totalBytes': totalBytes,
+      'type': type.index,
+      'contentId': contentId,
       'quality': quality,
-      'headers': headers,
+      'exportedPath': exportedPath,
     };
   }
 }

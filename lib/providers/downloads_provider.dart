@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../models/download_model.dart';
 
 class DownloadsProvider with ChangeNotifier {
@@ -22,6 +23,7 @@ class DownloadsProvider with ChangeNotifier {
     _progressSubscription = eventChannel.receiveBroadcastStream().listen((event) {
       if (event is List) {
         bool needsNotify = false;
+        bool needsSave = false;
 
         for (var update in event) {
           final Map<dynamic, dynamic> data = update;
@@ -35,19 +37,30 @@ class DownloadsProvider with ChangeNotifier {
           if (index != -1) {
             final item = downloads[index];
 
+            if (item.exportedPath != null) continue;
+
+            if (item.status == DownloadStatus.completed && item.progress >= 1.0) {
+              if (progress < 100.0) continue;
+            }
+
             if (item.progress != progress / 100 || item.downloadedBytes != downloadedBytes || item.status.index != _mapMedia3Status(statusIdx).index) {
+              final oldStatus = item.status;
+
               item.progress = progress / 100;
               item.downloadedBytes = downloadedBytes;
               item.totalBytes = totalBytes;
               item.status = _mapMedia3Status(statusIdx);
               needsNotify = true;
-            }
 
-            if (item.status == DownloadStatus.completed && item.progress < 1.0) {
-              item.progress = 1.0;
-              _saveDownloadsToDisk();
+              if (oldStatus != item.status || item.status == DownloadStatus.completed) {
+                needsSave = true;
+              }
             }
           }
+        }
+
+        if (needsSave) {
+          _saveDownloadsToDisk();
         }
 
         if (needsNotify) {
@@ -70,7 +83,7 @@ class DownloadsProvider with ChangeNotifier {
     }
   }
 
-  Future<void> startDownload(String url, String title, String image, {Map<String, String>? headers, String? fileName}) async {
+  Future<void> startDownload(String url, String title, String image, {Map<String, String>? headers, String? fileName, int? contentId, String? quality}) async {
     final downloadItem = DownloadItem(
       id: url,
       url: url,
@@ -80,6 +93,8 @@ class DownloadsProvider with ChangeNotifier {
       status: DownloadStatus.downloading,
       progress: 0.0,
       type: url.contains('.m3u8') ? DownloadType.hls : DownloadType.direct,
+      contentId: contentId,
+      quality: quality ?? "",
     );
 
     downloads.removeWhere((item) => item.id == url);
@@ -97,6 +112,47 @@ class DownloadsProvider with ChangeNotifier {
       downloadItem.status = DownloadStatus.failed;
       _saveDownloadsToDisk();
       notifyListeners();
+    }
+  }
+
+  Future<void> addPendingDownload({required int contentId, required String quality, required String title, required String fileNameLabel, required String image}) async {
+    final String tempId = "pending_${contentId}_${DateTime.now().microsecondsSinceEpoch}";
+
+    final downloadItem = DownloadItem(
+      id: tempId,
+      url: "",
+      title: title,
+      image: image,
+      fileNameLabel: fileNameLabel,
+      status: DownloadStatus.pending,
+      progress: 0.0,
+      type: DownloadType.direct,
+      contentId: contentId,
+      quality: quality,
+    );
+
+    downloads.insert(0, downloadItem);
+    _saveDownloadsToDisk();
+    notifyListeners();
+  }
+
+  Future<void> initializePendingDownload(String id, String url, {Map<String, String>? headers}) async {
+    final index = downloads.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      final pendingItem = downloads[index];
+
+      downloads.removeAt(index);
+      notifyListeners();
+
+      await startDownload(
+        url,
+        pendingItem.title,
+        pendingItem.image,
+        headers: headers,
+        fileName: pendingItem.fileNameLabel,
+        contentId: pendingItem.contentId,
+        quality: pendingItem.quality,
+      );
     }
   }
 
@@ -134,12 +190,44 @@ class DownloadsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> playDownloadedVideo(String url) async {
-    try {
-      await platform.invokeMethod('playOfflineVideo', {'url': url});
-    } catch (e) {
-      debugPrint("Play failed: $e");
+  Future<void> playDownloadedVideo(DownloadItem item) async {
+    if (item.exportedPath != null && item.exportedPath!.isNotEmpty) {
+      OpenFile.open(item.exportedPath);
+    } else {
+      try {
+        await platform.invokeMethod('playOfflineVideo', {'url': item.url});
+      } catch (e) {
+        debugPrint("Play failed: $e");
+      }
     }
+  }
+
+  Future<bool> exportVideoToGallery(String id) async {
+    final index = downloads.indexWhere((e) => e.id == id);
+    if (index == -1) return false;
+
+    final item = downloads[index];
+
+    try {
+      final String? newPath = await platform.invokeMethod('exportDownload', {
+        'url': item.url,
+        'title': item.title,
+      });
+
+      if (newPath != null) {
+        item.exportedPath = newPath;
+        item.status = DownloadStatus.completed;
+
+        _saveDownloadsToDisk();
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      if (e.toString().contains("NOT_SUPPORTED")) {
+        throw "هذا الفيديو محمي ولا يمكن تصديره للمعرض";
+      }
+    }
+    return false;
   }
 
   Future<File> _getDbFile() async {
@@ -172,7 +260,4 @@ class DownloadsProvider with ChangeNotifier {
     _progressSubscription?.cancel();
     super.dispose();
   }
-
-  Future<void> addPendingDownload({required int contentId, required String quality, required String title, required String fileNameLabel, required String image}) async {}
-  Future<void> initializePendingDownload(String id, String url, {Map<String, String>? headers}) async {}
 }

@@ -12,7 +12,10 @@ import io.flutter.plugin.common.MethodChannel
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
+import java.io.File
+import java.io.FileOutputStream
 import java.util.ArrayList
+import java.util.HashSet
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.cima_box/downloads"
@@ -66,6 +69,61 @@ class MainActivity : FlutterActivity() {
                         intent.putExtra("video_url", url)
                         startActivity(intent)
                         result.success(true)
+                    }
+                }
+                "exportDownload" -> {
+                    val url = call.argument<String>("url")
+                    val title = call.argument<String>("title")
+
+                    if (url != null && title != null) {
+                        if (url.contains(".m3u8") || url.contains(".mpd")) {
+                            result.error("NOT_SUPPORTED", "HLS/DASH content cannot be exported directly.", null)
+                        } else {
+                            Thread {
+                                try {
+                                    val targetDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "CimaBox")
+                                    if (!targetDir.exists()) targetDir.mkdirs()
+
+                                    val safeTitle = title.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
+                                    val targetFile = File(targetDir, "$safeTitle.mp4")
+
+                                    val dataSourceFactory = DownloadUtil.getDataSourceFactory(context)
+                                    val dataSource = dataSourceFactory.createDataSource()
+                                    val dataSpec = androidx.media3.datasource.DataSpec(Uri.parse(url))
+
+                                    dataSource.open(dataSpec)
+                                    val outputStream = FileOutputStream(targetFile)
+                                    val buffer = ByteArray(8 * 1024)
+                                    var bytesRead: Int
+
+                                    while (dataSource.read(buffer, 0, buffer.size).also { bytesRead = it } != -1) {
+                                        outputStream.write(buffer, 0, bytesRead)
+                                    }
+
+                                    outputStream.flush()
+                                    outputStream.close()
+                                    dataSource.close()
+
+                                    DownloadService.sendRemoveDownload(
+                                        this,
+                                        MyDownloadService::class.java,
+                                        url,
+                                        false
+                                    )
+
+                                    runOnUiThread {
+                                        result.success(targetFile.absolutePath)
+                                    }
+
+                                } catch (e: Exception) {
+                                    runOnUiThread {
+                                        result.error("EXPORT_FAILED", e.message, null)
+                                    }
+                                }
+                            }.start()
+                        }
+                    } else {
+                        result.error("INVALID_ARGS", "Url or title missing", null)
                     }
                 }
                 else -> result.notImplemented()
@@ -124,6 +182,8 @@ class DownloadProgressStreamHandler(private val context: Context) : EventChannel
     private var eventSink: EventChannel.EventSink? = null
     private var handler: Handler = Handler(Looper.getMainLooper())
     private var isDisposed = false
+    private val trackedIds = HashSet<String>()
+    private var isFirstRun = true
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -131,23 +191,77 @@ class DownloadProgressStreamHandler(private val context: Context) : EventChannel
 
             try {
                 val downloadManager = DownloadUtil.getDownloadManager(context)
-                val cursor = downloadManager.downloadIndex.getDownloads()
                 val updates = ArrayList<Map<String, Any>>()
+                val currentActiveIds = HashSet<String>()
 
-                while (cursor.moveToNext()) {
-                    val download = cursor.download
+                if (isFirstRun) {
+                    isFirstRun = false
+                    val cursor = downloadManager.downloadIndex.getDownloads()
+                    while (cursor.moveToNext()) {
+                        val download = cursor.download
+                        val id = download.request.id
 
-                    val percent = download.percentDownloaded
-                    val downloadedBytes = download.bytesDownloaded
-                    val totalBytes = if (download.contentLength != -1L) download.contentLength else 0L
+                        if (download.state != Download.STATE_COMPLETED && download.state != Download.STATE_FAILED) {
+                            trackedIds.add(id)
+                        }
 
-                    updates.add(mapOf(
-                        "id" to download.request.id,
-                        "status" to download.state,
-                        "progress" to percent,
-                        "downloadedBytes" to downloadedBytes,
-                        "totalBytes" to totalBytes
-                    ))
+                        val percent = download.percentDownloaded
+                        val downloadedBytes = download.bytesDownloaded
+                        val totalBytes = if (download.contentLength != -1L) download.contentLength else 0L
+
+                        updates.add(mapOf(
+                            "id" to id,
+                            "status" to download.state,
+                            "progress" to percent,
+                            "downloadedBytes" to downloadedBytes,
+                            "totalBytes" to totalBytes
+                        ))
+                    }
+                    cursor.close()
+                } else {
+                    val activeDownloads = downloadManager.currentDownloads
+                    for (download in activeDownloads) {
+                        val id = download.request.id
+                        currentActiveIds.add(id)
+                        trackedIds.add(id)
+
+                        val percent = download.percentDownloaded
+                        val downloadedBytes = download.bytesDownloaded
+                        val totalBytes = if (download.contentLength != -1L) download.contentLength else 0L
+
+                        updates.add(mapOf(
+                            "id" to id,
+                            "status" to download.state,
+                            "progress" to percent,
+                            "downloadedBytes" to downloadedBytes,
+                            "totalBytes" to totalBytes
+                        ))
+                    }
+
+                    val iterator = trackedIds.iterator()
+                    while (iterator.hasNext()) {
+                        val id = iterator.next()
+                        if (!currentActiveIds.contains(id)) {
+                            val download = downloadManager.downloadIndex.getDownload(id)
+                            if (download != null) {
+                                val totalBytes = if (download.contentLength != -1L) download.contentLength else 0L
+
+                                updates.add(mapOf(
+                                    "id" to download.request.id,
+                                    "status" to download.state,
+                                    "progress" to download.percentDownloaded,
+                                    "downloadedBytes" to download.bytesDownloaded,
+                                    "totalBytes" to totalBytes
+                                ))
+
+                                if (download.state == Download.STATE_COMPLETED || download.state == Download.STATE_FAILED) {
+                                    iterator.remove()
+                                }
+                            } else {
+                                iterator.remove()
+                            }
+                        }
+                    }
                 }
 
                 if (updates.isNotEmpty()) {
@@ -157,7 +271,7 @@ class DownloadProgressStreamHandler(private val context: Context) : EventChannel
             } catch (e: Exception) {
             }
 
-            handler.postDelayed(this, 500)
+            handler.postDelayed(this, 100)
         }
     }
 

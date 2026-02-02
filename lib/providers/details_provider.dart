@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/details_model.dart';
 import '../models/server_model.dart';
 import '../screens/video_player_screen.dart';
+import '../services/cache_helper.dart';
 import '../services/dynamic_scraper_service.dart';
 import '../utils/video_scraper.dart';
 import 'downloads_provider.dart';
@@ -25,11 +26,24 @@ class DetailsProvider with ChangeNotifier {
   final String _serversUrl = 'https://ar.fastmovies.site/arb/servers';
 
   Future<void> fetchDetails(int id, {bool sortDescending = true}) async {
-    isLoading = true;
+    final String cacheKey = 'details_$id';
+    var cachedData = CacheHelper.getData(cacheKey);
+
+    if (cachedData != null) {
+      try {
+        details = DetailsModel.fromJson(Map<String, dynamic>.from(cachedData));
+        _sortSeasonsAndEpisodes(sortDescending);
+        notifyListeners();
+      } catch (_) {}
+    } else {
+      isLoading = true;
+      notifyListeners();
+    }
+
     error = null;
     selectedSeasonIndex = 0;
     availableQualities = null;
-    notifyListeners();
+
     try {
       final data = await ApiService.post(
         _detailsUrl,
@@ -37,17 +51,24 @@ class DetailsProvider with ChangeNotifier {
       );
 
       if (data != null) {
+        CacheHelper.saveData(cacheKey, data);
         details = DetailsModel.fromJson(data);
         _sortSeasonsAndEpisodes(sortDescending);
       } else {
-        error = 'فشل التحميل';
+        if (details == null) error = 'فشل التحميل';
       }
     } catch (e) {
-      error = 'حدث خطأ: $e';
+      if (details == null) error = 'حدث خطأ: $e';
     } finally {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void reSortSeasonsAndEpisodes(bool descending) {
+    if (details == null) return;
+    _sortSeasonsAndEpisodes(descending);
+    notifyListeners();
   }
 
   void _sortSeasonsAndEpisodes(bool descending) {
@@ -57,6 +78,11 @@ class DetailsProvider with ChangeNotifier {
       details!.seasons.sort((a, b) {
         int n1 = int.tryParse(a.name.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
         int n2 = int.tryParse(b.name.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+        if (n1 == 0 && n2 == 0) {
+          return descending ? b.name.compareTo(a.name) : a.name.compareTo(b.name);
+        }
+
         return descending ? n2.compareTo(n1) : n1.compareTo(n2);
       });
 
@@ -76,6 +102,27 @@ class DetailsProvider with ChangeNotifier {
   }
 
   Future<Map<String, List<ServerItem>>?> getServersOnly(int contentId) async {
+    final String cacheKey = 'servers_$contentId';
+    final cachedMap = CacheHelper.getData(cacheKey);
+
+    if (cachedMap != null) {
+      final int timestamp = cachedMap['timestamp'] ?? 0;
+      final int now = DateTime.now().millisecondsSinceEpoch;
+
+      if (now - timestamp < 3600000) {
+        try {
+          Map<String, dynamic> jsonResponse = Map<String, dynamic>.from(cachedMap['data']);
+          Map<String, List<ServerItem>> result = {};
+          jsonResponse.forEach((quality, serversList) {
+            if (serversList is List && serversList.isNotEmpty) {
+              result[quality] = serversList.map((e) => ServerItem.fromJson(e)).toList();
+            }
+          });
+          if (result.isNotEmpty) return result;
+        } catch (_) {}
+      }
+    }
+
     try {
       final data = await ApiService.post(
         _serversUrl,
@@ -83,6 +130,11 @@ class DetailsProvider with ChangeNotifier {
       );
 
       if (data != null) {
+        CacheHelper.saveData(cacheKey, {
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'data': data
+        });
+
         Map<String, dynamic> jsonResponse = data;
         Map<String, List<ServerItem>> result = {};
 

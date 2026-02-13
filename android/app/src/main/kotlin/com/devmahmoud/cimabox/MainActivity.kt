@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
+import androidx.media3.datasource.DataSpec
 import java.io.File
 import java.io.FileOutputStream
 import java.util.ArrayList
@@ -29,103 +30,129 @@ class MainActivity : FlutterActivity() {
                 "startDownload" -> {
                     val url = call.argument<String>("url")
                     val title = call.argument<String>("title")
+                    val id = call.argument<String>("id")
                     val headers = call.argument<Map<String, String>>("headers")
 
-                    if (url != null && title != null) {
+                    if (url != null && title != null && id != null) {
                         if (headers != null) {
                             HeadersStore.saveHeaders(url, headers)
                         }
-                        startDownload(url, title)
+                        startDownload(url, title, id)
                         result.success(true)
                     } else {
-                        result.error("INVALID_ARGS", "Url or title missing", null)
+                        result.error("INVALID_ARGS", "Url, title or id missing", null)
                     }
                 }
                 "pauseDownload" -> {
-                    val url = call.argument<String>("url")
-                    if (url != null) {
-                        pauseDownload(url)
+                    val id = call.argument<String>("url")
+                    if (id != null) {
+                        pauseDownload(id)
                         result.success(true)
                     }
                 }
                 "resumeDownload" -> {
-                    val url = call.argument<String>("url")
-                    if (url != null) {
-                        resumeDownload(url)
+                    val id = call.argument<String>("url")
+                    if (id != null) {
+                        resumeDownload(id)
                         result.success(true)
                     }
                 }
                 "removeDownload" -> {
-                    val url = call.argument<String>("url")
-                    if (url != null) {
-                        removeDownload(url)
+                    val id = call.argument<String>("url")
+                    if (id != null) {
+                        removeDownload(id)
                         result.success(true)
                     }
                 }
                 "playOfflineVideo" -> {
                     val url = call.argument<String>("url")
+                    val id = call.argument<String>("id")
                     if (url != null) {
                         val intent = Intent(this, PlayerActivity::class.java)
                         intent.putExtra("video_url", url)
+                        intent.putExtra("cache_key", id)
                         startActivity(intent)
                         result.success(true)
                     }
                 }
+
                 "exportDownload" -> {
                     val url = call.argument<String>("url")
                     val title = call.argument<String>("title")
 
                     if (url != null && title != null) {
-                        if (url.contains(".m3u8") || url.contains(".mpd")) {
-                            result.error("NOT_SUPPORTED", "HLS/DASH content cannot be exported directly.", null)
-                        } else {
-                            Thread {
-                                try {
-                                    val targetDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "CimaBox")
-                                    if (!targetDir.exists()) targetDir.mkdirs()
+                        Thread {
+                            try {
+                                val downloadManager = DownloadUtil.getDownloadManager(context)
+                                var cacheKey: String? = null
 
-                                    val safeTitle = title.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
-                                    val targetFile = File(targetDir, "$safeTitle.mp4")
-
-                                    val dataSourceFactory = DownloadUtil.getDataSourceFactory(context)
-                                    val dataSource = dataSourceFactory.createDataSource()
-                                    val dataSpec = androidx.media3.datasource.DataSpec(Uri.parse(url))
-
-                                    dataSource.open(dataSpec)
-                                    val outputStream = FileOutputStream(targetFile)
-                                    val buffer = ByteArray(8 * 1024)
-                                    var bytesRead: Int
-
-                                    while (dataSource.read(buffer, 0, buffer.size).also { bytesRead = it } != -1) {
-                                        outputStream.write(buffer, 0, bytesRead)
-                                    }
-
-                                    outputStream.flush()
-                                    outputStream.close()
-                                    dataSource.close()
-
-                                    DownloadService.sendRemoveDownload(
-                                        this,
-                                        MyDownloadService::class.java,
-                                        url,
-                                        false
-                                    )
-
-                                    runOnUiThread {
-                                        result.success(targetFile.absolutePath)
-                                    }
-
-                                } catch (e: Exception) {
-                                    runOnUiThread {
-                                        result.error("EXPORT_FAILED", e.message, null)
+                                val cursor = downloadManager.downloadIndex.getDownloads()
+                                while (cursor.moveToNext()) {
+                                    val download = cursor.download
+                                    if (download.request.uri.toString() == url && download.state == Download.STATE_COMPLETED) {
+                                        cacheKey = download.request.customCacheKey ?: download.request.id
+                                        break
                                     }
                                 }
-                            }.start()
-                        }
+                                cursor.close()
+
+                                if (cacheKey == null) {
+                                    runOnUiThread {
+                                        result.error("NOT_FOUND", "الملف غير موجود في التنزيلات المكتملة", null)
+                                    }
+                                    return@Thread
+                                }
+
+                                val targetDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "CimaBox")
+                                if (!targetDir.exists()) targetDir.mkdirs()
+
+                                val safeTitle = title.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
+                                val targetFile = File(targetDir, "$safeTitle.mp4")
+
+                                val dataSourceFactory = DownloadUtil.getDataSourceFactory(context)
+                                val dataSource = dataSourceFactory.createDataSource()
+
+                                val dataSpec = DataSpec.Builder()
+                                    .setUri(Uri.parse(url))
+                                    .setKey(cacheKey)
+                                    .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
+                                    .build()
+
+                                dataSource.open(dataSpec)
+                                val outputStream = FileOutputStream(targetFile)
+                                val buffer = ByteArray(1024 * 64)
+                                var bytesRead: Int
+
+                                while (dataSource.read(buffer, 0, buffer.size).also { bytesRead = it } != -1) {
+                                    outputStream.write(buffer, 0, bytesRead)
+                                }
+
+                                outputStream.flush()
+                                outputStream.close()
+                                dataSource.close()
+
+                                DownloadService.sendRemoveDownload(
+                                    this,
+                                    MyDownloadService::class.java,
+                                    cacheKey,
+                                    false
+                                )
+
+                                runOnUiThread {
+                                    result.success(targetFile.absolutePath)
+                                }
+
+                            } catch (e: Exception) {
+                                runOnUiThread {
+                                    result.error("EXPORT_FAILED", e.message, null)
+                                }
+                            }
+                        }.start()
                     } else {
                         result.error("INVALID_ARGS", "Url or title missing", null)
                     }
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -134,9 +161,10 @@ class MainActivity : FlutterActivity() {
             .setStreamHandler(DownloadProgressStreamHandler(this))
     }
 
-    private fun startDownload(url: String, title: String) {
-        val downloadRequest = DownloadRequest.Builder(url, Uri.parse(url))
+    private fun startDownload(url: String, title: String, id: String) {
+        val downloadRequest = DownloadRequest.Builder(id, Uri.parse(url))
             .setData(title.toByteArray())
+            .setCustomCacheKey(id)
             .build()
 
         DownloadService.sendAddDownload(
@@ -147,32 +175,32 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun pauseDownload(url: String) {
+    private fun pauseDownload(id: String) {
         DownloadService.sendSetStopReason(
             this,
             MyDownloadService::class.java,
-            url,
+            id,
             1,
             false
         )
     }
 
-    private fun resumeDownload(url: String) {
+    private fun resumeDownload(id: String) {
         DownloadService.sendSetStopReason(
             this,
             MyDownloadService::class.java,
-            url,
+            id,
             0,
             false
         )
     }
 
-    private fun removeDownload(url: String) {
-        HeadersStore.removeHeaders(url)
+    private fun removeDownload(id: String) {
+        HeadersStore.removeHeaders(id)
         DownloadService.sendRemoveDownload(
             this,
             MyDownloadService::class.java,
-            url,
+            id,
             false
         )
     }

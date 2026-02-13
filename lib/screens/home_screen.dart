@@ -11,7 +11,8 @@ import '../providers/details_provider.dart';
 import 'watch_history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final ScrollController? scrollController;
+  const HomeScreen({super.key, this.scrollController});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final data = provider.homeData!;
 
           return CustomScrollView(
+            controller: widget.scrollController,
             physics: const BouncingScrollPhysics(),
             slivers: [
               if (data.featured.isNotEmpty)

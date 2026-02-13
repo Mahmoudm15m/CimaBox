@@ -42,7 +42,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> checkPremiumStatus() async {
     try {
-      await ApiService.get('https://ar.fastmovies.site/arb/home');
+      await ApiService.get('https://ar.syria-live.fun/arb/home');
     } catch (e) {
       print("Error checking premium status: $e");
     }

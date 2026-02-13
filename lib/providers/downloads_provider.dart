@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:provider/provider.dart';
 import '../models/download_model.dart';
+import 'details_provider.dart';
 
 class DownloadsProvider with ChangeNotifier {
   List<DownloadItem> downloads = [];
@@ -84,8 +86,10 @@ class DownloadsProvider with ChangeNotifier {
   }
 
   Future<void> startDownload(String url, String title, String image, {Map<String, String>? headers, String? fileName, int? contentId, String? quality}) async {
+    final String uniqueId = "download_${contentId ?? title.hashCode}_${quality ?? 'default'}";
+
     final downloadItem = DownloadItem(
-      id: url,
+      id: uniqueId,
       url: url,
       title: title,
       image: image,
@@ -97,7 +101,7 @@ class DownloadsProvider with ChangeNotifier {
       quality: quality ?? "",
     );
 
-    downloads.removeWhere((item) => item.id == url);
+    downloads.removeWhere((item) => item.id == uniqueId);
     downloads.insert(0, downloadItem);
     _saveDownloadsToDisk();
     notifyListeners();
@@ -106,12 +110,58 @@ class DownloadsProvider with ChangeNotifier {
       await platform.invokeMethod('startDownload', {
         'url': url,
         'title': title,
+        'id': uniqueId,
         'headers': headers ?? {},
       });
     } catch (e) {
       downloadItem.status = DownloadStatus.failed;
       _saveDownloadsToDisk();
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshDownloadLink(BuildContext context, String downloadId) async {
+    try {
+      final itemIndex = downloads.indexWhere((d) => d.id == downloadId);
+      if (itemIndex == -1) return;
+
+      final item = downloads[itemIndex];
+
+      if (item.contentId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("لا يمكن تحديث الرابط: بيانات المحتوى مفقودة")));
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("جاري استخراج رابط جديد...")));
+
+      final detailsProvider = Provider.of<DetailsProvider>(context, listen: false);
+      final linkData = await detailsProvider.fetchLinkForDownload(item.contentId!, item.quality, context);
+
+      if (linkData != null) {
+        String newUrl = linkData['url'];
+        Map<String, String> headers = {};
+        if (linkData['headers'] != null && linkData['headers'] is Map) {
+          linkData['headers'].forEach((k, v) => headers[k.toString()] = v.toString());
+        }
+
+        downloads[itemIndex] = item.copyWith(url: newUrl, status: DownloadStatus.downloading);
+        await _saveDownloadsToDisk();
+        notifyListeners();
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث الرابط! جاري الاستكمال...")));
+
+        await platform.invokeMethod('startDownload', {
+          'url': newUrl,
+          'title': item.title,
+          'id': item.id,
+          'headers': headers,
+        });
+
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل استخراج رابط جديد")));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
     }
   }
 
@@ -191,13 +241,27 @@ class DownloadsProvider with ChangeNotifier {
   }
 
   Future<void> playDownloadedVideo(DownloadItem item) async {
-    if (item.exportedPath != null && item.exportedPath!.isNotEmpty) {
-      OpenFile.open(item.exportedPath);
-    } else {
-      try {
-        await platform.invokeMethod('playOfflineVideo', {'url': item.url});
-      } catch (e) {
-        debugPrint("Play failed: $e");
+    try {
+      String videoUrl;
+      String? cacheId;
+
+      if (item.exportedPath != null && item.exportedPath!.isNotEmpty) {
+        videoUrl = item.exportedPath!;
+        cacheId = null;
+      } else {
+        videoUrl = item.url;
+        cacheId = item.id;
+      }
+
+      await platform.invokeMethod('playOfflineVideo', {
+        'url': videoUrl,
+        'id': cacheId,
+      });
+
+    } catch (e) {
+      debugPrint("Play failed: $e");
+      if (item.exportedPath != null && item.exportedPath!.isNotEmpty) {
+        OpenFile.open(item.exportedPath);
       }
     }
   }
@@ -242,6 +306,8 @@ class DownloadsProvider with ChangeNotifier {
       await file.writeAsString(jsonStr);
     } catch (_) { }
   }
+
+
 
   Future<void> _loadDownloadsFromDisk() async {
     try {

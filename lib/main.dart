@@ -68,14 +68,25 @@ class MyApp extends StatelessWidget {
           dispose: (_, service) => service.dispose(),
         ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Cima Box',
-        theme: ThemeData(
-          primarySwatch: Colors.red,
-          scaffoldBackgroundColor: const Color(0xFF121212),
-        ),
-        home: const SplashScreen(),
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, child) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Cima Box',
+            theme: ThemeData(
+              primarySwatch: Colors.red,
+              scaffoldBackgroundColor: const Color(0xFF121212),
+            ),
+            builder: (context, child) {
+              final mediaQueryData = MediaQuery.of(context);
+              return MediaQuery(
+                data: mediaQueryData.copyWith(textScaleFactor: settings.textScale),
+                child: child!,
+              );
+            },
+            home: const SplashScreen(),
+          );
+        },
       ),
     );
   }

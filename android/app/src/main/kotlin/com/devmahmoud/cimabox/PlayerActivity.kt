@@ -14,16 +14,20 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import androidx.media3.datasource.DefaultDataSource
 import java.io.File
 import kotlin.math.abs
 
 class PlayerActivity : AppCompatActivity() {
+
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
     private var videoUrl: String? = null
+    private var cacheKey: String? = null
     private var videoTitle: String? = "Video"
 
     private lateinit var gestureLayout: LinearLayout
@@ -32,9 +36,13 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var audioManager: AudioManager
     private lateinit var gestureDetector: GestureDetector
 
-    private var startVolume: Int = 0
-    private var startBrightness: Float = 0f
-    private var startPosition: Long = 0
+    private var startVolume = 0
+    private var startBrightness = 0f
+    private var startPosition = 0L
+
+    private var isLongPress = false
+    private val normalSpeed = 1.0f
+    private var canControl = false
 
     private enum class GestureMode { NONE, VERTICAL, HORIZONTAL }
     private var currentGestureMode = GestureMode.NONE
@@ -51,28 +59,31 @@ class PlayerActivity : AppCompatActivity() {
         gestureText = findViewById(R.id.gesture_text)
 
         videoUrl = intent.getStringExtra("video_url")
+        cacheKey = intent.getStringExtra("cache_key")
         videoTitle = File(videoUrl ?: "").nameWithoutExtension.replace("-", " ")
 
-        playerView?.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
-            override fun onVisibilityChanged(visibility: Int) {
-                if (visibility == View.VISIBLE) {
-                    val backBtn = findViewById<ImageButton>(R.id.btn_back)
-                    val titleTv = findViewById<TextView>(R.id.tv_video_title)
-                    val forwardBtn = findViewById<ImageButton>(R.id.btn_forward_10)
-                    val rewindBtn = findViewById<ImageButton>(R.id.btn_rewind_10)
+        playerView?.setControllerVisibilityListener(
+            object : PlayerView.ControllerVisibilityListener {
+                override fun onVisibilityChanged(visibility: Int) {
+                    if (visibility == View.VISIBLE) {
+                        findViewById<TextView>(R.id.tv_video_title)?.text = videoTitle
+                        findViewById<ImageButton>(R.id.btn_back)?.setOnClickListener { finish() }
 
-                    if (titleTv != null) titleTv.text = videoTitle
-                    if (backBtn != null) backBtn.setOnClickListener { finish() }
+                        findViewById<ImageButton>(R.id.btn_forward_10)?.setOnClickListener {
+                            if (canControl) {
+                                player?.seekTo((player?.currentPosition ?: 0) + 10000)
+                            }
+                        }
 
-                    forwardBtn?.setOnClickListener {
-                        player?.let { it.seekTo(it.currentPosition + 10000) }
-                    }
-                    rewindBtn?.setOnClickListener {
-                        player?.let { it.seekTo(it.currentPosition - 10000) }
+                        findViewById<ImageButton>(R.id.btn_rewind_10)?.setOnClickListener {
+                            if (canControl) {
+                                player?.seekTo((player?.currentPosition ?: 0) - 10000)
+                            }
+                        }
                     }
                 }
             }
-        })
+        )
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -82,9 +93,26 @@ class PlayerActivity : AppCompatActivity() {
                 startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                 startBrightness = window.attributes.screenBrightness
                 if (startBrightness < 0) startBrightness = 0.5f
-                player?.let { startPosition = it.currentPosition }
+                startPosition = player?.currentPosition ?: 0L
                 currentGestureMode = GestureMode.NONE
+                isLongPress = false
                 return true
+            }
+
+            override fun onLongPress(e: MotionEvent) {
+                if (!canControl) return
+                val p = player ?: return
+
+                val width = playerView!!.width
+                isLongPress = true
+
+                if (e.x > width / 2) {
+                    p.setPlaybackSpeed(2.0f)
+                    showGestureFeedback(android.R.drawable.ic_media_ff, "2x")
+                } else {
+                    p.setPlaybackSpeed(0.5f)
+                    showGestureFeedback(android.R.drawable.ic_media_rew, "0.5x")
+                }
             }
 
             override fun onScroll(
@@ -93,47 +121,46 @@ class PlayerActivity : AppCompatActivity() {
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                if (e1 == null) return false
+                if (!canControl || isLongPress || e1 == null) return true
 
                 if (currentGestureMode == GestureMode.NONE) {
                     val diffX = abs(e1.x - e2.x)
                     val diffY = abs(e1.y - e2.y)
-                    val touchSlop = 50f
-
-                    if (diffX > touchSlop || diffY > touchSlop) {
-                        if (diffY > diffX) {
-                            currentGestureMode = GestureMode.VERTICAL
-                        } else {
-                            currentGestureMode = GestureMode.HORIZONTAL
-                        }
+                    if (diffX > 50 || diffY > 50) {
+                        currentGestureMode =
+                            if (diffY > diffX) GestureMode.VERTICAL else GestureMode.HORIZONTAL
                     }
                 }
 
-                if (currentGestureMode == GestureMode.NONE) return true
+                val h = playerView!!.height.toFloat()
+                val w = playerView!!.width.toFloat()
 
-                val viewHeight = playerView!!.height.toFloat()
-                val viewWidth = playerView!!.width.toFloat()
-
-                if (currentGestureMode == GestureMode.VERTICAL) {
-                    val percentY = (e1.y - e2.y) / viewHeight
-                    val isLeftSide = e1.x < viewWidth / 2
-                    if (isLeftSide) {
-                        adjustBrightness(percentY)
-                    } else {
-                        adjustVolume(percentY)
+                when (currentGestureMode) {
+                    GestureMode.VERTICAL -> {
+                        val percent = (e1.y - e2.y) / h
+                        if (e1.x < w / 2) adjustBrightness(percent)
+                        else adjustVolume(percent)
                     }
-                } else if (currentGestureMode == GestureMode.HORIZONTAL) {
-                    val percentX = (e2.x - e1.x) / viewWidth
-                    adjustSeek(percentX)
+                    GestureMode.HORIZONTAL -> {
+                        val percent = (e2.x - e1.x) / w
+                        adjustSeek(percent)
+                    }
+                    else -> {}
                 }
                 return true
             }
         })
 
         playerView?.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+            if (event.action == MotionEvent.ACTION_UP ||
+                event.action == MotionEvent.ACTION_CANCEL
+            ) {
+                if (isLongPress) {
+                    player?.setPlaybackSpeed(normalSpeed)
+                }
                 gestureLayout.visibility = View.GONE
                 currentGestureMode = GestureMode.NONE
+                isLongPress = false
             }
             gestureDetector.onTouchEvent(event)
             playerView?.onTouchEvent(event) ?: false
@@ -141,63 +168,52 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun adjustBrightness(percent: Float) {
-        val layoutParams = window.attributes
-        var newBrightness = startBrightness + percent
-        newBrightness = newBrightness.coerceIn(0.01f, 1.0f)
-
-        layoutParams.screenBrightness = newBrightness
-        window.attributes = layoutParams
-
-        val brightnessInt = (newBrightness * 100).toInt()
-        showGestureFeedback(android.R.drawable.ic_menu_view, "$brightnessInt%")
+        val params = window.attributes
+        var value = startBrightness + percent
+        value = value.coerceIn(0.01f, 1f)
+        params.screenBrightness = value
+        window.attributes = params
+        showGestureFeedback(android.R.drawable.ic_menu_view, "${(value * 100).toInt()}%")
     }
 
     private fun adjustVolume(percent: Float) {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-
-        val deltaVolume = (percent * maxVolume).toInt()
-        var newVolume = startVolume + deltaVolume
-        newVolume = newVolume.coerceIn(0, maxVolume)
-
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
-
-        val volumePercent = (newVolume.toFloat() / maxVolume.toFloat() * 100).toInt()
-        showGestureFeedback(android.R.drawable.ic_lock_silent_mode_off, "$volumePercent%")
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        var value = startVolume + (percent * max).toInt()
+        value = value.coerceIn(0, max)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
+        showGestureFeedback(
+            android.R.drawable.ic_lock_silent_mode_off,
+            "${(value * 100 / max)}%"
+        )
     }
 
     private fun adjustSeek(percent: Float) {
-        val player = player ?: return
-        val totalDuration = player.duration
+        val p = player ?: return
+        val delta = (percent * 120000).toLong()
+        var pos = startPosition + delta
+        pos = pos.coerceIn(0, p.duration)
+        p.seekTo(pos)
 
-        val seekWindowMs = 120000L
-        val deltaMs = (percent * seekWindowMs).toLong()
-
-        var newPosition = startPosition + deltaMs
-        newPosition = newPosition.coerceIn(0, totalDuration)
-
-        player.seekTo(newPosition)
-
-        val totalSeconds = newPosition / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        val timeString = String.format("%02d:%02d", minutes, seconds)
-
-        val icon = if (deltaMs > 0) android.R.drawable.ic_media_ff else android.R.drawable.ic_media_rew
-
-        showGestureFeedback(icon, timeString)
+        val sec = pos / 1000
+        showGestureFeedback(
+            if (delta > 0) android.R.drawable.ic_media_ff
+            else android.R.drawable.ic_media_rew,
+            String.format("%02d:%02d", sec / 60, sec % 60)
+        )
     }
 
-    private fun showGestureFeedback(iconResId: Int, text: String) {
+    private fun showGestureFeedback(icon: Int, text: String) {
         gestureLayout.visibility = View.VISIBLE
-        gestureIcon.setImageResource(iconResId)
+        gestureIcon.setImageResource(icon)
         gestureText.text = text
     }
 
     private fun hideSystemUI() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
 
@@ -214,21 +230,47 @@ class PlayerActivity : AppCompatActivity() {
     private fun initializePlayer() {
         if (videoUrl == null) return
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(DownloadUtil.getDataSourceFactory(this))
+        
+        val isLocalFile = videoUrl!!.startsWith("/") || videoUrl!!.startsWith("file://")
+
+        val dataSourceFactory = if (isLocalFile) {
+            
+            DefaultDataSource.Factory(this)
+        } else {
+            
+            DownloadUtil.getDataSourceFactory(this)
+        }
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
 
-        playerView?.player = player
+        player?.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    canControl = true
+                }
+            }
+        })
 
-        val mediaItem = MediaItem.fromUri(videoUrl!!)
-        player?.setMediaItem(mediaItem)
+        val mediaItemBuilder = MediaItem.Builder()
+            .setUri(videoUrl!!)
+
+        
+        if (cacheKey != null && !isLocalFile) {
+            mediaItemBuilder.setCustomCacheKey(cacheKey)
+        }
+
+        playerView?.player = player
+        player?.setMediaItem(mediaItemBuilder.build())
         player?.prepare()
         player?.playWhenReady = true
     }
 
     private fun releasePlayer() {
+        canControl = false
         player?.release()
         player = null
     }

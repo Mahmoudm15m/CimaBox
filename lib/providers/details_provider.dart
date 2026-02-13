@@ -22,8 +22,8 @@ class DetailsProvider with ChangeNotifier {
   String? loadingAction;
   Map<String, List<ServerItem>>? availableQualities;
 
-  final String _detailsUrl = 'https://ar.fastmovies.site/arb/details';
-  final String _serversUrl = 'https://ar.fastmovies.site/arb/servers';
+  final String _detailsUrl = 'https://ar.syria-live.fun/arb/details';
+  final String _serversUrl = 'https://ar.syria-live.fun/arb/servers';
 
   Future<void> fetchDetails(int id, {bool sortDescending = true}) async {
     final String cacheKey = 'details_$id';
@@ -464,6 +464,8 @@ class DetailsProvider with ChangeNotifier {
           details?.poster ?? "",
           headers: headers,
           fileName: fileNameBase,
+          contentId: contentId,
+          quality: quality,
         );
 
         if (autoStart && showLoading) {
@@ -521,6 +523,32 @@ class DetailsProvider with ChangeNotifier {
     }
   }
 
+  int _getSeasonNumber(String name, int index, int total, bool isDescending) {
+    final match = RegExp(r'\d+').firstMatch(name);
+    if (match != null) {
+      return int.parse(match.group(0)!);
+    }
+
+    if (name.contains("الاول") || name.contains("الأول")) return 1;
+    if (name.contains("الثاني") || name.contains("الثانى")) return 2;
+    if (name.contains("الثالث")) return 3;
+    if (name.contains("الرابع")) return 4;
+    if (name.contains("الخامس")) return 5;
+    if (name.contains("السادس")) return 6;
+    if (name.contains("السابع")) return 7;
+    if (name.contains("الثامن")) return 8;
+    if (name.contains("التاسع")) return 9;
+    if (name.contains("العاشر")) return 10;
+    if (name.contains("الحادي")) return 11;
+    if (name.contains("الثاني عشر")) return 12;
+
+    if (isDescending) {
+      return total - index;
+    } else {
+      return index + 1;
+    }
+  }
+
   void downloadSeason(BuildContext context) {
     if (details == null || details!.seasons.isEmpty) return;
 
@@ -535,7 +563,17 @@ class DetailsProvider with ChangeNotifier {
     String mainTitle = details?.title ?? "مسلسل";
     mainTitle = mainTitle.trim();
     String mainTitleFile = mainTitle.replaceAll(RegExp(r'[^\w\s\u0600-\u06FF-]'), '').replaceAll(' ', '-');
-    String sNum = (selectedSeasonIndex + 1).toString().padLeft(2, '0');
+
+    String seasonName = details!.seasons[selectedSeasonIndex].name;
+
+    int sNumInt = _getSeasonNumber(
+        seasonName,
+        selectedSeasonIndex,
+        details!.seasons.length,
+        settings.sortDescending
+    );
+
+    String sNum = sNumInt.toString().padLeft(2, '0');
 
     final reversedEpisodes = episodes.reversed.toList();
 

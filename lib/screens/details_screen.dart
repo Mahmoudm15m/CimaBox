@@ -6,6 +6,7 @@ import '../providers/details_provider.dart';
 import '../models/details_model.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/watch_history_provider.dart';
 import 'category_screen.dart';
 import 'actor_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -616,102 +617,129 @@ class _DetailsContentState extends State<_DetailsContent> {
   }
 
   Widget _buildEpisodesHorizontalList(List<Episode> episodes, String posterUrl, DetailsProvider provider) {
-    return SizedBox(
-      height: 160,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: episodes.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final episode = episodes[index];
-          final bool isLoading = _loadingEpisodeId == episode.id;
+    return Consumer<WatchHistoryProvider>(
+      builder: (context, historyProvider, _) {
+        return SizedBox(
+          height: 160,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: episodes.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final episode = episodes[index];
+              final bool isLoading = _loadingEpisodeId == episode.id;
 
-          return Container(
-            width: 140,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                        child: CachedNetworkImage(
-                          imageUrl: posterUrl,
-                          fit: BoxFit.cover,
-                          color: Colors.black.withOpacity(0.3),
-                          colorBlendMode: BlendMode.darken,
-                        ),
-                      ),
-                      Center(
-                        child: isLoading
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2))
-                            : Icon(Icons.play_circle_fill, color: Colors.white.withOpacity(0.9), size: 35),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: isLoading ? null : () async {
-                            setState(() => _loadingEpisodeId = episode.id);
-                            await provider.handleAction(context, episode.id, isPlay: true, isEpisode: true);
-                            if(mounted) setState(() => _loadingEpisodeId = null);
-                          },
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
+              double progress = 0.0;
+              bool hasHistory = false;
+
+              try {
+                final historyItem = historyProvider?.history.firstWhere((item) => item.id == episode.id);
+                if (historyItem!.durationMs > 0) {
+                  progress = historyItem.positionMs / historyItem.durationMs;
+                  hasHistory = true;
+                }
+              } catch (_) {}
+
+              return Container(
+                width: 140,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white10),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF252525),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "حلقة ${episode.number}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: isLoading ? null : () async {
-                            setState(() => _loadingEpisodeId = episode.id);
-                            await provider.handleAction(context, episode.id, isPlay: false, isEpisode: true);
-                            if(mounted) setState(() => _loadingEpisodeId = null);
-                          },
-                          borderRadius: BorderRadius.circular(50),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              shape: BoxShape.circle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                            child: CachedNetworkImage(
+                              imageUrl: posterUrl,
+                              fit: BoxFit.cover,
+                              color: Colors.black.withOpacity(0.3),
+                              colorBlendMode: BlendMode.darken,
                             ),
-                            child: const Icon(Icons.download_rounded, color: Colors.redAccent, size: 20),
                           ),
-                        ),
+                          Center(
+                            child: isLoading
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2))
+                                : Icon(Icons.play_circle_fill, color: Colors.white.withOpacity(0.9), size: 35),
+                          ),
+
+                          if (hasHistory)
+                            Positioned(
+                              bottom: 0, left: 0, right: 0,
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                backgroundColor: Colors.white24,
+                                color: Colors.redAccent,
+                                minHeight: 3,
+                              ),
+                            ),
+
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: isLoading ? null : () async {
+                                setState(() => _loadingEpisodeId = episode.id);
+                                await provider.handleAction(context, episode.id, isPlay: true, isEpisode: true);
+                                if(mounted) setState(() => _loadingEpisodeId = null);
+                              },
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF252525),
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "حلقة ${episode.number}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: isLoading ? null : () async {
+                                setState(() => _loadingEpisodeId = episode.id);
+                                await provider.handleAction(context, episode.id, isPlay: false, isEpisode: true);
+                                if(mounted) setState(() => _loadingEpisodeId = null);
+                              },
+                              borderRadius: BorderRadius.circular(50),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.download_rounded, color: Colors.redAccent, size: 20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

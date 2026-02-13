@@ -13,8 +13,8 @@ class HomeProvider with ChangeNotifier {
   List<CategoryItem> categories = [];
   Map<int, List<ContentItem>> categoryPreviews = {};
 
-  final String _baseUrl = 'https://ar.fastmovies.site/arb/home';
-  final String _categoryContentUrl = 'https://ar.fastmovies.site/arb/category';
+  final String _baseUrl = 'https://ar.syria-live.fun/arb/home';
+  final String _categoryContentUrl = 'https://ar.syria-live.fun/arb/category';
 
   Future<void> fetchHomeData() async {
     var cachedData = CacheHelper.getData('home_data');

@@ -24,6 +24,18 @@ class _SearchScreenState extends State<SearchScreen> {
   List<String> _searchHistory = [];
   bool _isHistoryLoaded = false;
 
+  
+  final List<List<Color>> _gradients = [
+    [const Color(0xFFE50914), const Color(0xFFB00610)], 
+    [const Color(0xFF1E88E5), const Color(0xFF1565C0)], 
+    [const Color(0xFF8E24AA), const Color(0xFF6A1B9A)], 
+    [const Color(0xFF43A047), const Color(0xFF2E7D32)], 
+    [const Color(0xFFFF8F00), const Color(0xFFFF6F00)], 
+    [const Color(0xFF00ACC1), const Color(0xFF00838F)], 
+    [const Color(0xFFEC407A), const Color(0xFFD81B60)], 
+    [const Color(0xFFFFD600), const Color(0xFFFBC02D)], 
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -139,9 +151,11 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF121212),
-                border: Border(bottom: BorderSide(color: Colors.white10)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121212),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 5))
+                ],
               ),
               child: Column(
                 children: [
@@ -167,8 +181,16 @@ class _SearchScreenState extends State<SearchScreen> {
                       )
                           : null,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(color: Color(0xFFE50914), width: 1),
                       ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     ),
@@ -309,88 +331,95 @@ class _SearchScreenState extends State<SearchScreen> {
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Years Section - Dropdown Menu (القائمة المنسدلة)
+
+              
               if (provider.years.isNotEmpty) ...[
-                const Text(
-                  "تصفح حسب السنة",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Container(
+                Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      hint: const Text("اختر السنة", style: TextStyle(color: Colors.grey)),
-                      dropdownColor: const Color(0xFF252525),
-                      icon: const Icon(Icons.calendar_today, color: Colors.redAccent, size: 20),
-                      menuMaxHeight: 300, // تحديد أقصى ارتفاع للقائمة لتسمح بالسكرول
-                      items: provider.years.map((item) {
-                        return DropdownMenuItem(
-                          value: item.value,
-                          child: Text(
-                            item.value,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CategoryScreen(
-                                title: val, // يعرض السنة فقط كعنوان
-                                id: 0,
-                                year: val,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "تصفح حسب السنة",
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 15),
+                SizedBox(
+                  height: 50,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: provider.years.length,
+                    separatorBuilder: (c, i) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      return _buildYearCard(provider.years[index], index);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 30),
               ],
 
-              // 2. Qualities Section
+              
               if (provider.qualities.isNotEmpty) ...[
-                const Text(
-                  "تصفح حسب الجودة",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.hd_outlined, color: Colors.cyanAccent, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "تصفح حسب الجودة",
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: provider.qualities.map((item) => _buildQualityChip(item)).toList(),
+                const SizedBox(height: 15),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: provider.qualities.asMap().entries.map((entry) {
+                      return _buildQualityCard(entry.value, entry.key);
+                    }).toList(),
+                  ),
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 30),
               ],
 
-              // 3. Genres Section
+              
               if (provider.genres.isNotEmpty) ...[
-                const Text(
-                  "تصفح حسب التصنيف",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.category_outlined, color: Colors.purpleAccent, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "تصفح حسب التصنيف",
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 15),
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    childAspectRatio: 2.5,
+                    childAspectRatio: 2.2, 
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
@@ -408,35 +437,54 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildQualityChip(BrowseItem item) {
-    return ActionChip(
-      label: Text(item.value),
-      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-      backgroundColor: const Color(0xFF252525),
-      side: BorderSide.none,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      onPressed: () {
+  Widget _buildYearCard(BrowseItem item, int index) {
+    
+    final gradient = _gradients[index % _gradients.length];
+
+    return InkWell(
+      onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CategoryScreen(title: item.value, id: item.id),
+            builder: (context) => CategoryScreen(title: item.value, id: 0, year: item.value),
           ),
         );
       },
+      borderRadius: BorderRadius.circular(25),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: gradient[0].withOpacity(0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Text(
+          item.value,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              shadows: [BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))]
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildGenreCard(BrowseItem item) {
-    final List<Color> colors = [
-      Colors.blueAccent.withOpacity(0.1),
-      Colors.redAccent.withOpacity(0.1),
-      Colors.purpleAccent.withOpacity(0.1),
-      Colors.orangeAccent.withOpacity(0.1),
-      Colors.greenAccent.withOpacity(0.1),
-      Colors.tealAccent.withOpacity(0.1),
-    ];
-    final color = colors[item.id % colors.length];
+  Widget _buildQualityCard(BrowseItem item, int index) {
+    
+    final gradient = _gradients[(_gradients.length - 1 - index) % _gradients.length];
 
     return InkWell(
       onTap: () {
@@ -447,32 +495,80 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         );
       },
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: gradient[0].withOpacity(0.5), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: gradient[0].withOpacity(0.1), blurRadius: 4)
+            ]
+        ),
+        child: Text(
+          item.value,
+          style: TextStyle(
+              color: gradient[1], 
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenreCard(BrowseItem item) {
+    final gradient = _gradients[item.id % _gradients.length];
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CategoryScreen(title: item.value, id: item.id),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: gradient[0].withOpacity(0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.8),
-                borderRadius: const BorderRadius.only(topRight: Radius.circular(10), bottomRight: Radius.circular(10)),
+            Positioned(
+              right: -10,
+              bottom: -10,
+              child: Icon(
+                  Icons.movie_creation_outlined,
+                  size: 60,
+                  color: Colors.white.withOpacity(0.2)
               ),
             ),
-            Expanded(
-              child: Center(
-                child: Text(
-                  item.value,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
+            Center(
+              child: Text(
+                item.value,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                    shadows: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))]
                 ),
               ),
             ),
@@ -493,15 +589,16 @@ class _SearchScreenState extends State<SearchScreen> {
         );
       },
       child: Container(
-        height: 120,
+        height: 110,
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.3),
-              blurRadius: 5,
-              offset: const Offset(0, 3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -509,11 +606,11 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(12),
-                bottomRight: Radius.circular(12),
+                topRight: Radius.circular(15),
+                bottomRight: Radius.circular(15),
               ),
               child: AspectRatio(
-                aspectRatio: 0.7,
+                aspectRatio: 0.75,
                 child: CachedNetworkImage(
                   imageUrl: item.image,
                   fit: BoxFit.cover,
@@ -524,7 +621,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -535,44 +632,33 @@ class _SearchScreenState extends State<SearchScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        height: 1.3,
+                        height: 1.2,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         if (item.rating != null && item.rating != "N/A") ...[
-                          const Icon(Icons.star, color: Colors.amber, size: 14),
+                          const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                           const SizedBox(width: 4),
                           Text(
                             item.rating!,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 15),
                         ],
                         if (item.type != null)
-                          Text(
-                            item.type == 'movie' ? 'فيلم' : 'مسلسل',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12),
-                          ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        if (item.quality != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.redAccent.withOpacity(0.15),
+                              color: Colors.white.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
                             ),
                             child: Text(
-                              item.quality!,
-                              style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                              item.type == 'movie' ? 'فيلم' : 'مسلسل',
+                              style: const TextStyle(color: Colors.grey, fontSize: 11),
                             ),
                           ),
                       ],
@@ -581,6 +667,24 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
             ),
+            if (item.quality != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE50914).withOpacity(0.8),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                    ),
+                    child: Text(
+                      item.quality!,
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -598,9 +702,12 @@ class _SearchScreenState extends State<SearchScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.redAccent : Colors.white.withOpacity(0.05),
+          color: isSelected ? const Color(0xFFE50914) : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.redAccent : Colors.white12),
+          border: Border.all(color: isSelected ? const Color(0xFFE50914) : Colors.white12),
+          boxShadow: isSelected ? [
+            BoxShadow(color: const Color(0xFFE50914).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2))
+          ] : [],
         ),
         child: Text(
           label,

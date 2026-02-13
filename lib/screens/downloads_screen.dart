@@ -134,15 +134,17 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         title: const Text("التنزيلات",
-            style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white)),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.folder_open_rounded,color: Colors.white,),
+            icon: const Icon(Icons.folder_open_rounded, color: Colors.white),
             onPressed: () {
-              OpenFile.open("/storage/emulated/0/Download/CimaBox");
+              try {
+                OpenFile.open("/storage/emulated/0/Download/CimaBox");
+              } catch (_) {}
             },
           )
         ],
@@ -192,9 +194,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Widget _buildDownloadCard(
       BuildContext context, DownloadItem item, DownloadsProvider provider) {
     bool isInitializing = _initializingId == item.id;
-
     double displayProgress = item.progress.clamp(0, 1);
-
     bool isCompleted = item.status == DownloadStatus.completed;
     bool isExported = item.exportedPath != null;
 
@@ -203,10 +203,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [
-            const Color(0xFF1F1F1F),
-            const Color(0xFF181818),
+            Color(0xFF1F1F1F),
+            Color(0xFF181818),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -230,13 +230,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 120,
-                  height: 120,
+                  width: 110,
+                  height: 110,
                   child: CachedNetworkImage(
                     imageUrl: item.image,
                     fit: BoxFit.cover,
-                    placeholder: (c, u) =>
-                        Container(color: Colors.grey[900]),
+                    placeholder: (c, u) => Container(color: Colors.grey[900]),
                     errorWidget: (c, u, e) => Container(
                       color: Colors.grey[850],
                       child: const Icon(Icons.movie,
@@ -245,11 +244,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ),
                 ),
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: 110,
+                  height: 110,
                   color: Colors.black.withOpacity(0.35),
                 ),
-                if (isCompleted)
+                if ((isCompleted || item.status == DownloadStatus.downloading || item.status == DownloadStatus.paused) && item.downloadedBytes > 0)
                   InkWell(
                     onTap: () => provider.playDownloadedVideo(item),
                     child: Container(
@@ -264,7 +263,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         ],
                       ),
                       child: const Icon(Icons.play_arrow_rounded,
-                          size: 34, color: Colors.white),
+                          size: 30, color: Colors.white),
                     ),
                   ),
               ],
@@ -272,51 +271,52 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     item.title,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 13,
                         color: Colors.white),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   if (item.fileNameLabel.isNotEmpty)
                     Text(
                       item.fileNameLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 11, color: Colors.white38),
+                          fontSize: 10, color: Colors.white38),
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+
                   if (item.status == DownloadStatus.downloading ||
                       item.status == DownloadStatus.paused) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
                         value: displayProgress,
-                        minHeight: 7,
+                        minHeight: 6,
                         color: item.status == DownloadStatus.paused
                             ? Colors.amber
                             : Colors.redAccent,
                         backgroundColor: Colors.white12,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Text(
                           "${(displayProgress * 100).toStringAsFixed(0)}%",
                           style: const TextStyle(
                               color: Colors.white70,
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold),
                         ),
                         const Spacer(),
@@ -325,144 +325,246 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                               ? "${_formatBytes(item.downloadedBytes)} / ${_formatBytes(item.totalBytes)}"
                               : _formatBytes(item.downloadedBytes),
                           style: const TextStyle(
-                              color: Colors.white38, fontSize: 11),
+                              color: Colors.white38, fontSize: 10),
                         )
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         if (item.status == DownloadStatus.downloading)
-                          _miniButton(
-                            text: "إيقاف",
-                            icon: Icons.pause,
-                            color: Colors.amber,
-                            onTap: () => provider.pauseDownload(item.id),
+                          Expanded(
+                            child: _miniButton(
+                              text: "إيقاف",
+                              icon: Icons.pause,
+                              color: Colors.amber,
+                              onTap: () => provider.pauseDownload(item.id),
+                            ),
                           ),
-                        if (item.status == DownloadStatus.paused)
-                          _miniButton(
-                            text: "استكمال",
-                            icon: Icons.play_arrow,
-                            color: Colors.green,
-                            onTap: () => provider.resumeDownload(item.id),
+                        if (item.status == DownloadStatus.paused) ...[
+                          Expanded(
+                            flex: 3,
+                            child: _miniButton(
+                              text: "استكمال",
+                              icon: Icons.play_arrow,
+                              color: Colors.green,
+                              onTap: () => provider.resumeDownload(item.id),
+                            ),
                           ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.white38),
-                          onPressed: () =>
-                              _confirmDelete(context, provider, item.id),
-                        )
-                      ],
-                    )
-                  ] else if (item.status == DownloadStatus.pending) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time,
-                            color: Colors.orangeAccent, size: 16),
-                        const SizedBox(width: 6),
-                        const Text("في الانتظار...",
-                            style: TextStyle(
-                                color: Colors.orangeAccent, fontSize: 12)),
-                        const Spacer(),
-                        if (isInitializing)
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        else
-                          IconButton(
-                            icon: const Icon(Icons.download_rounded,
-                                color: Colors.white),
-                            onPressed: () =>
-                                _startPendingDownload(context, item, provider),
-                          )
-                      ],
-                    )
-                  ] else if (isCompleted) ...[
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white10,
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => provider.refreshDownloadLink(context, item.id),
                             borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                              ),
+                              child: const Icon(Icons.link, color: Colors.blueAccent, size: 16),
+                            ),
                           ),
-                          child: Text(
-                            _formatBytes(item.totalBytes > 0
-                                ? item.totalBytes
-                                : item.downloadedBytes),
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.white60),
+                        ],
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => _confirmDelete(context, provider, item.id),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
                           ),
-                        ),
-                        const Spacer(),
-                        if (!isExported)
-                          _miniButton(
-                            text: "حفظ",
-                            icon: Icons.save_alt_rounded,
-                            color: Colors.blueAccent,
-                            onTap: () async {
-
-                              bool hasPermission = await _checkStoragePermission();
-                              if (!hasPermission) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                  content: Text("يجب منح إذن الوصول للذاكرة لحفظ الفيديو"),
-                                  backgroundColor: Colors.red,
-                                ));
-                                return;
-                              }
-
-                              try {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("جاري التصدير للمعرض..."),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-
-                                bool success = await provider.exportVideoToGallery(item.id);
-
-                                if (success) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      backgroundColor: Colors.green,
-                                      content: Text("تم الحفظ في المعرض بنجاح"),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text("فشل التصدير"),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    backgroundColor: Colors.orange,
-                                    content: Text(e.toString()),
-                                  ),
-                                );
-                              }
-                            },
-                          )
-                        else
-                          const Icon(Icons.check_circle,
-                              color: Colors.green, size: 18),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.white38),
-                          onPressed: () =>
-                              _confirmDelete(context, provider, item.id),
                         )
                       ],
                     )
                   ]
+                  else if (item.status == DownloadStatus.pending) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, color: Colors.orangeAccent, size: 16),
+                        const SizedBox(width: 4),
+                        const Text("انتظار...", style: TextStyle(color: Colors.orangeAccent, fontSize: 11)),
+                        const Spacer(),
+                        if (isInitializing)
+                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
+                        else
+                          InkWell(
+                            onTap: () => _startPendingDownload(context, item, provider),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Icon(Icons.download_rounded, color: Colors.redAccent, size: 20),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => _confirmDelete(context, provider, item.id),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                          ),
+                        )
+                      ],
+                    )
+                  ]
+                  else if (isCompleted) ...[
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white10,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _formatBytes(item.totalBytes > 0 ? item.totalBytes : item.downloadedBytes),
+                              style: const TextStyle(fontSize: 9, color: Colors.white60),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (!isExported)
+                            _miniButton(
+                              text: "حفظ",
+                              icon: Icons.save_alt_rounded,
+                              color: Colors.blueAccent,
+                              onTap: () async {
+                                bool hasPermission = await _checkStoragePermission();
+                                if (!hasPermission) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("مطلوب إذن التخزين لحفظ الملف"), backgroundColor: Colors.red),
+                                  );
+                                  return;
+                                }
+
+                                BuildContext? dialogContext;
+
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (BuildContext context) {
+                                    dialogContext = context;
+                                    return Dialog(
+                                      backgroundColor: const Color(0xFF1F1F1F),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              "جاري الحفظ في الاستوديو...",
+                                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const LinearProgressIndicator(
+                                              backgroundColor: Colors.white10,
+                                              color: Colors.redAccent,
+                                              minHeight: 5,
+                                            ),
+                                            const SizedBox(height: 10),
+                                            const Text(
+                                              "يرجى الانتظار، لا تغلق التطبيق",
+                                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+
+                                bool success = await provider.exportVideoToGallery(item.id);
+
+                                if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+                                  Navigator.pop(dialogContext!);
+                                }
+
+                                if (mounted) {
+                                  if (success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: const [
+                                            Icon(Icons.check_circle, color: Colors.white),
+                                            SizedBox(width: 10),
+                                            Expanded(child: Text("تم حفظ الفيديو بنجاح في مجلد Downloads/CimaBox")),
+                                          ],
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("فشل حفظ الفيديو، تأكد من المساحة أو الصلاحيات"),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            )
+                          else
+                            const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                            (item.exportedPath != null)? Row(
+                              children: [
+                                SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () => OpenFile.open(item.exportedPath),
+                                  child: Icon(Icons.queue_play_next_rounded , color: Colors.blueAccent,),
+                                ),
+                              ],
+                            ) : SizedBox(),
+
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => _confirmDelete(context, provider, item.id),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                            ),
+                          )
+                        ],
+                      )
+                    ]
+                    else if (item.status == DownloadStatus.failed) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.redAccent, size: 16),
+                            const SizedBox(width: 4),
+                            const Text("فشل", style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            InkWell(
+                              onTap: () => _confirmDelete(context, provider, item.id),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                              ),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _miniButton(
+                                text: "تحديث الرابط",
+                                icon: Icons.link,
+                                color: Colors.blueAccent,
+                                onTap: () => provider.refreshDownloadLink(context, item.id),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: _miniButton(
+                                text: "إعادة",
+                                icon: Icons.refresh,
+                                color: Colors.white,
+                                onTap: () => provider.resumeDownload(item.id),
+                              ),
+                            ),
+                          ],
+                        )
+                      ]
                 ],
               ),
             ),
@@ -478,24 +580,31 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         required Color color,
         required VoidCallback onTap}) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.4)),
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
+        alignment: Alignment.center,
         child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 5),
-            Text(text,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: color)),
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: color)),
+            ),
           ],
         ),
       ),

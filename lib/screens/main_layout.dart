@@ -9,7 +9,8 @@ import 'search_screen.dart';
 import 'settings_screen.dart';
 
 class MainLayout extends StatefulWidget {
-  const MainLayout({super.key});
+  final ScrollController? homeScrollController;
+  const MainLayout({super.key, this.homeScrollController});
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -17,14 +18,19 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
+  late List<Widget> _screens;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const SearchScreen(),
-    const DownloadsScreen(),
-    const FavoritesScreen(),
-    const SettingsScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(scrollController: widget.homeScrollController),
+      const SearchScreen(),
+      const DownloadsScreen(),
+      const FavoritesScreen(),
+      const SettingsScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {

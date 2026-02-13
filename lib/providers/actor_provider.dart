@@ -7,7 +7,7 @@ class ActorProvider with ChangeNotifier {
   bool isLoading = false;
   String? error;
 
-  final String _url = 'https://ar.fastmovies.site/arb/actor';
+  final String _url = 'https://ar.syria-live.fun/arb/actor';
 
   Future<void> fetchActor(int id) async {
     isLoading = true;

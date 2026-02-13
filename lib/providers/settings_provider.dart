@@ -11,6 +11,8 @@ class SettingsProvider with ChangeNotifier {
   bool preferHlsWatching = true;
   bool preferHlsDownload = false;
 
+  double textScale = 1.0;
+
   final String _fileName = "settings.json";
 
   SettingsProvider() {
@@ -34,6 +36,7 @@ class SettingsProvider with ChangeNotifier {
 
         preferHlsWatching = data['prefer_hls_watching'] ?? true;
         preferHlsDownload = data['prefer_hls_download'] ?? false;
+        textScale = data['text_scale'] ?? 1.0;
 
         notifyListeners();
       }
@@ -51,6 +54,7 @@ class SettingsProvider with ChangeNotifier {
         'sort_descending': sortDescending,
         'prefer_hls_watching': preferHlsWatching,
         'prefer_hls_download': preferHlsDownload,
+        'text_scale': textScale,
       });
       await file.writeAsString(jsonStr);
     } catch (e) {
@@ -84,6 +88,12 @@ class SettingsProvider with ChangeNotifier {
 
   void setPreferHlsDownload(bool value) {
     preferHlsDownload = value;
+    notifyListeners();
+    _saveSettings();
+  }
+
+  void setTextScale(double value) {
+    textScale = value;
     notifyListeners();
     _saveSettings();
   }

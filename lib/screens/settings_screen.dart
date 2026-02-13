@@ -11,7 +11,6 @@ import '../services/cache_helper.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import '../services/cache_helper.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -115,6 +114,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 20),
               _buildPremiumCard(context, auth),
+
+              const SizedBox(height: 28),
+              _buildSectionHeader("المظهر"),
+              _buildSettingsCard(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("حجم الخط", style: TextStyle(color: Colors.white, fontSize: 14)),
+                              Text(
+                                "${(settings.textScale * 100).toInt()}%",
+                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              const Text("A", style: TextStyle(color: Colors.white, fontSize: 12)),
+                              Expanded(
+                                child: Slider(
+                                  value: settings.textScale,
+                                  min: 0.5,
+                                  max: 1.5,
+                                  divisions: 12,
+                                  activeColor: Colors.redAccent,
+                                  inactiveColor: Colors.grey[800],
+                                  onChanged: (val) {
+                                    settings.setTextScale(val);
+                                  },
+                                ),
+                              ),
+                              const Text("A", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ]
+              ),
 
               const SizedBox(height: 28),
               _buildSectionHeader("تفضيلات المحتوى"),

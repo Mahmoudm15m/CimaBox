@@ -11,7 +11,7 @@ class CategoryProvider with ChangeNotifier {
   int? currentId;
   String? currentYear;
 
-  final String _categoryContentUrl = 'https://ar.fastmovies.site/arb/category';
+  final String _categoryContentUrl = 'https://ar.syria-live.fun/arb/category';
 
   Future<void> fetchCategory(int id, {bool refresh = false, String? year}) async {
     if (refresh) {
@@ -32,7 +32,7 @@ class CategoryProvider with ChangeNotifier {
       dynamic data;
 
       if (year != null) {
-        final String yearUrl = 'https://ar.fastmovies.site/arb/year/$year?page=$currentPage';
+        final String yearUrl = 'https://ar.syria-live.fun/arb/year/$year?page=$currentPage';
         data = await ApiService.get(yearUrl);
       } else {
         data = await ApiService.post(

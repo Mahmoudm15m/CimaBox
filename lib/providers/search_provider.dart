@@ -27,8 +27,8 @@ class SearchProvider with ChangeNotifier {
   List<BrowseItem> qualities = [];
   List<BrowseItem> years = [];
 
-  final String _searchUrl = 'https://ar.fastmovies.site/arb/search';
-  final String _browseUrl = 'https://ar.fastmovies.site/arb/all_data';
+  final String _searchUrl = 'https://ar.syria-live.fun/arb/search';
+  final String _browseUrl = 'https://ar.syria-live.fun/arb/all_data';
 
   Future<void> search(String query, {String type = 'all'}) async {
     isLoading = true;

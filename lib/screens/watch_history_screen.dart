@@ -85,7 +85,6 @@ class WatchHistoryScreen extends StatelessWidget {
                 },
                 child: GestureDetector(
                   onTap: () {
-                    // تم التعديل هنا لاستخدام handleAction بدلاً من fetchServers
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text("جاري الاستكمال..."),
                       duration: Duration(seconds: 1),
@@ -96,7 +95,8 @@ class WatchHistoryScreen extends StatelessWidget {
                         item.id,
                         isPlay: true,
                         title: item.title,
-                        poster: item.image
+                        poster: item.image,
+                        isFromHistory: true
                     );
                   },
                   child: Container(

@@ -2,6 +2,7 @@ import 'package:cima_box/services/ad_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../models/comment_model.dart';
 import '../providers/details_provider.dart';
 import '../models/details_model.dart';
 import '../providers/favorites_provider.dart';
@@ -11,6 +12,8 @@ import 'category_screen.dart';
 import 'actor_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
+import '../providers/comments_provider.dart';
+import '../widgets/comments_bottom_sheet.dart';
 
 class DetailsScreen extends StatelessWidget {
   final int id;
@@ -50,105 +53,30 @@ class _DetailsContentState extends State<_DetailsContent> {
     }
   }
 
-  void _showPremiumDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 50, height: 5,
-                decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(10)),
-              ),
-              const SizedBox(height: 20),
-              const Icon(Icons.workspace_premium, size: 60, color: Colors.amber),
-              const SizedBox(height: 15),
-              const Text(
-                "ميزة للمشتركين فقط",
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "تحميل الموسم بالكامل متاح فقط لعضوية Premium",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 15),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final Uri url = Uri.parse('https://t.me/M2HM00D');
-                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل فتح الرابط")));
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    ),
-                    child: const Text("اشترك الآن عبر تيليجرام", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildSeasonDownloadBtn(DetailsProvider provider) {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
-        bool isLocked = !auth.isPremium;
         return Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 15),
           child: OutlinedButton.icon(
-            onPressed: () {
-              if (isLocked) {
-                _showPremiumDialog();
-              } else {
+            onPressed: () async {
+              if (auth.user == null) {
+                provider.showLoginDialog(context);
+                return;
+              }
+              await AdManager.showInterstitialAd(context);
+              if (context.mounted) {
                 provider.downloadSeason(context);
               }
             },
-            icon: Icon(
-                isLocked ? Icons.lock : Icons.playlist_add_check,
-                color: isLocked ? Colors.grey : Colors.white70
-            ),
-            label: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "تحميل الموسم بالكامل",
-                  style: TextStyle(color: isLocked ? Colors.grey : Colors.white70),
-                ),
-                if (isLocked) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.workspace_premium, color: Colors.amber, size: 16),
-                ]
-              ],
+            icon: const Icon(Icons.playlist_add_check, color: Colors.white70),
+            label: const Text(
+              "تحميل الموسم بالكامل",
+              style: TextStyle(color: Colors.white70),
             ),
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: isLocked ? Colors.white10 : Colors.white24),
+              side: const BorderSide(color: Colors.white24),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -184,6 +112,7 @@ class _DetailsContentState extends State<_DetailsContent> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +254,9 @@ class _DetailsContentState extends State<_DetailsContent> {
                         _buildEpisodesHorizontalList(data.seasons[provider.selectedSeasonIndex].episodes, data.poster, provider),
                         const SizedBox(height: 30),
                       ],
+
+                      CommentPreviewBox(contentId: widget.id.toString()),
+                      const SizedBox(height: 30),
 
                       if (data.related.isNotEmpty) ...[
                         const Text(
@@ -822,6 +754,110 @@ class _DetailsContentState extends State<_DetailsContent> {
                 style: const TextStyle(color: Colors.white70, fontSize: 10, height: 1.2),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class CommentPreviewBox extends StatefulWidget {
+  final String contentId;
+  const CommentPreviewBox({super.key, required this.contentId});
+
+  @override
+  State<CommentPreviewBox> createState() => _CommentPreviewBoxState();
+}
+
+class _CommentPreviewBoxState extends State<CommentPreviewBox> {
+  late Stream<List<CommentModel>> _commentsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentsStream = Provider.of<CommentsProvider>(context, listen: false).getCommentsStream(widget.contentId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<CommentModel>>(
+      stream: _commentsStream,
+      builder: (context, snapshot) {
+        final comments = snapshot.data ?? [];
+        final latestComment = comments.isNotEmpty ? comments.first : null;
+        final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
+
+        return GestureDetector(
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (ctx) => CommentsBottomSheet(contentId: widget.contentId),
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "التعليقات",
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          comments.length.toString(),
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+                      ],
+                    ),
+                  ],
+                ),
+                if (latestComment != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundImage: CachedNetworkImageProvider(latestComment.userImage),
+                        backgroundColor: Colors.grey[800],
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        latestComment.userName,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    latestComment.text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                ] else if (!isLoading) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    "لا توجد تعليقات حتى الآن، كن أول من يعلق!",
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
           ),
         );
       },

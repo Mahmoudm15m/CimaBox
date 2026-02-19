@@ -9,6 +9,8 @@ import 'category_screen.dart';
 import '../providers/watch_history_provider.dart';
 import '../providers/details_provider.dart';
 import 'watch_history_screen.dart';
+import 'chat_screen.dart';
+import 'package:flutter/rendering.dart';
 
 class HomeScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -19,6 +21,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isFabVisible = true;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +44,47 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
+      floatingActionButton: AnimatedSlide(
+        duration: const Duration(milliseconds: 300),
+        offset: _isFabVisible ? Offset.zero : const Offset(0, 2),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: _isFabVisible ? 1.0 : 0.0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE50914), Color(0xFFFF5252)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withOpacity(0.4),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChatScreen()),
+                );
+              },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              icon: const Icon(Icons.forum_rounded, color: Colors.white, size: 24),
+              label: const Text(
+                "الدردشة الجماعيه",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: Consumer<HomeProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
@@ -54,198 +99,209 @@ class _HomeScreenState extends State<HomeScreen> {
 
           final data = provider.homeData!;
 
-          return CustomScrollView(
-            controller: widget.scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              if (data.featured.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _buildFeaturedSection(data.featured),
-                ),
-
-              if (data.episodes.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('أحدث الحلقات'),
-                      _buildHorizontalList(data.episodes),
-                    ],
+          return NotificationListener<UserScrollNotification>(
+            onNotification: (notification) {
+              if (notification.direction == ScrollDirection.reverse) {
+                if (_isFabVisible) setState(() => _isFabVisible = false);
+              } else if (notification.direction == ScrollDirection.forward || notification.direction == ScrollDirection.idle) {
+                if (!_isFabVisible) setState(() => _isFabVisible = true);
+              }
+              return true;
+            },
+            child: CustomScrollView(
+              controller: widget.scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                if (data.featured.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildFeaturedSection(data.featured),
                   ),
-                ),
-
-              if (data.movies.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('أحدث الأفلام'),
-                      _buildHorizontalList(data.movies),
-                    ],
+            
+                if (data.episodes.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('أحدث الحلقات'),
+                        _buildHorizontalList(data.episodes),
+                      ],
+                    ),
                   ),
-                ),
-
-              Consumer2<WatchHistoryProvider, AuthProvider>(
-                  builder: (context, historyProvider, auth, _) {
-                    if (!auth.isPremium || historyProvider.history.isEmpty) {
-                      return const SliverToBoxAdapter(child: SizedBox());
-                    }
-
-                    return SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: const [
-                                    Icon(Icons.history, color: Colors.redAccent, size: 20),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "استكمال المشاهدة",
+            
+                if (data.movies.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('أحدث الأفلام'),
+                        _buildHorizontalList(data.movies),
+                      ],
+                    ),
+                  ),
+            
+                Consumer<WatchHistoryProvider>(
+                    builder: (context, historyProvider, _) {
+                      if (historyProvider.history.isEmpty) {
+                        return const SliverToBoxAdapter(child: SizedBox());
+                      }
+            
+                      return SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.history, color: Colors.redAccent, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "استكمال المشاهدة",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(context, MaterialPageRoute(builder: (c) => const WatchHistoryScreen()));
+                                    },
+                                    child: const Text(
+                                      "عرض الكل",
                                       style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
+                                        color: Colors.redAccent,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (c) => const WatchHistoryScreen()));
-                                  },
-                                  child: const Text(
-                                    "عرض الكل",
-                                    style: TextStyle(
-                                      color: Colors.redAccent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          SizedBox(
-                            height: 140,
-                            child: ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: historyProvider.history.take(10).length,
-                              separatorBuilder: (ctx, i) => const SizedBox(width: 12),
-                              itemBuilder: (ctx, i) {
-                                final item = historyProvider.history[i];
-                                double progress = 0.0;
-                                if (item.durationMs > 0) {
-                                  progress = item.positionMs / item.durationMs;
-                                }
-
-                                return GestureDetector(
-                                  onTap: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                      content: Text("جاري الاستكمال..."),
-                                      duration: Duration(seconds: 1),
-                                    ));
-
-                                    Provider.of<DetailsProvider>(context, listen: false).handleAction(
-                                        context,
-                                        item.id,
-                                        isPlay: true,
-                                        title: item.title,
-                                        poster: item.image
-                                    );
-                                  },
-                                  onLongPress: (){
-                                    historyProvider.removeItem(item.id);
-                                  },
-                                  child: SizedBox(
-                                    width: 200,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(10),
-                                            child: Stack(
-                                              fit: StackFit.expand,
-                                              children: [
-                                                CachedNetworkImage(
-                                                  imageUrl: item.image,
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (c, u) => Container(color: Colors.grey[900]),
-                                                  errorWidget: (c, u, e) => Container(color: Colors.grey[800], child: const Icon(Icons.movie, color: Colors.white54)),
-                                                ),
-                                                Container(color: Colors.black38),
-                                                const Center(child: Icon(Icons.play_circle_outline, color: Colors.white, size: 40)),
-                                                Positioned(
-                                                  bottom: 0, left: 0, right: 0,
-                                                  child: LinearProgressIndicator(
-                                                    value: progress,
-                                                    backgroundColor: Colors.white24,
-                                                    color: Colors.redAccent,
-                                                    minHeight: 4,
+                            SizedBox(
+                              height: 140,
+                              child: ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: historyProvider.history.take(10).length,
+                                separatorBuilder: (ctx, i) => const SizedBox(width: 12),
+                                itemBuilder: (ctx, i) {
+                                  final item = historyProvider.history[i];
+                                  double progress = 0.0;
+                                  if (item.durationMs > 0) {
+                                    progress = item.positionMs / item.durationMs;
+                                  }
+            
+                                  return GestureDetector(
+                                    onTap: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                        content: Text("جاري الاستكمال..."),
+                                        duration: Duration(seconds: 1),
+                                      ));
+            
+                                      Provider.of<DetailsProvider>(context, listen: false).handleAction(
+                                          context,
+                                          item.id,
+                                          isPlay: true,
+                                          title: item.title,
+                                          poster: item.image,
+                                          isFromHistory: true
+                                      );
+                                    },
+                                    onLongPress: (){
+                                      historyProvider.removeItem(item.id);
+                                    },
+                                    child: SizedBox(
+                                      width: 200,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(10),
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  CachedNetworkImage(
+                                                    imageUrl: item.image,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (c, u) => Container(color: Colors.grey[900]),
+                                                    errorWidget: (c, u, e) => Container(color: Colors.grey[800], child: const Icon(Icons.movie, color: Colors.white54)),
                                                   ),
-                                                )
-                                              ],
+                                                  Container(color: Colors.black38),
+                                                  const Center(child: Icon(Icons.play_circle_outline, color: Colors.white, size: 40)),
+                                                  Positioned(
+                                                    bottom: 0, left: 0, right: 0,
+                                                    child: LinearProgressIndicator(
+                                                      value: progress,
+                                                      backgroundColor: Colors.white24,
+                                                      color: Colors.redAccent,
+                                                      minHeight: 4,
+                                                    ),
+                                                  )
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          item.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                                        ),
-                                        Text(
-                                          "${(progress * 100).toInt()}% مكتمل",
-                                          style: TextStyle(color: Colors.grey[500], fontSize: 10),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            item.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                                          ),
+                                          Text(
+                                            "${(progress * 100).toInt()}% مكتمل",
+                                            style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    );
-                  }
-              ),
-
-              if (data.series.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('المسلسلات'),
-                      _buildSeriesSection(data.series),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      );
+                    }
                 ),
-
-              if (provider.categories.isNotEmpty)
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                      final reorderedList = _interleaveCategories(provider.categories);
-                      final category = reorderedList[index];
-                      return CategorySection(category: category);
-                    },
-                    childCount: provider.categories.length,
+            
+                if (data.series.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('المسلسلات'),
+                        _buildSeriesSection(data.series),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 30)),
-            ],
+            
+                if (provider.categories.isNotEmpty)
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                        final reorderedList = _interleaveCategories(provider.categories);
+                        final category = reorderedList[index];
+                        return CategorySection(category: category);
+                      },
+                      childCount: provider.categories.length,
+                    ),
+                  ),
+            
+                const SliverToBoxAdapter(child: SizedBox(height: 30)),
+              ],
+            ),
           );
         },
       ),

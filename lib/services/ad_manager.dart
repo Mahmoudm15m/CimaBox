@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:unity_ads_plugin/unity_ads_plugin.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 class AdManager {
 
   static late BuildContext _context;
 
   static DateTime? _lastAdShowTime;
-  static const Duration _adInterval = Duration(minutes: 5);
+  static const Duration _adInterval = Duration(minutes: 0);
 
   static Future<String> getGameId() async {
     return '5783672';
@@ -109,12 +111,16 @@ class AdManager {
   }
 
   static Future<bool> showInterstitialAd(BuildContext context) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isPremium) {
+      return false;
+    }
 
     if (_lastAdShowTime != null && DateTime.now().difference(_lastAdShowTime!) < _adInterval) {
       return false;
     }
 
-    String placementId = await getInterstitialVideoAdPlacementId();
+    String placementId = await getRewardedVideoAdPlacementId();
 
     _showLoadingDialog(context, "جاري تحميل الإعلان...");
 

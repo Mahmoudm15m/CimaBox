@@ -112,8 +112,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? _buildGoogleSignInButton(auth)
                   : _buildUserProfile(auth),
 
-              const SizedBox(height: 20),
-              _buildPremiumCard(context, auth),
 
               const SizedBox(height: 28),
               _buildSectionHeader("المظهر"),
@@ -165,12 +163,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   _buildDropdownTile(
                     context: context,
-                    auth: auth,
                     icon: Icons.hd_outlined,
                     title: "جودة المشاهدة المفضلة",
                     value: settings.preferredWatchQuality,
                     items: ['1080', '720', '480'],
-                    checkPremium: false,
                     onChanged: (val) {
                       if (val != null) settings.setWatchQuality(val);
                     },
@@ -178,12 +174,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _divider(),
                   _buildDropdownTile(
                     context: context,
-                    auth: auth,
                     icon: Icons.download_for_offline_outlined,
                     title: "جودة التحميل المفضلة",
                     value: settings.preferredDownloadQuality,
                     items: ['1080', '720', '480'],
-                    checkPremium: true,
                     onChanged: (val) {
                       if (val != null) settings.setDownloadQuality(val);
                     },
@@ -191,19 +185,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _divider(),
                   SwitchListTile(
                     activeColor: Colors.redAccent,
-                    contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     secondary: const Icon(Icons.sort, color: Colors.white38),
                     title: const Text(
                       "ترتيب الحلقات تنازلياً",
                       style: TextStyle(color: Colors.white, fontSize: 14),
                     ),
                     subtitle: Text(
-                      settings.sortDescending
-                          ? "من الأحدث للأقدم"
-                          : "من الأقدم للأحدث",
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
+                      settings.sortDescending ? "من الأحدث للأقدم" : "من الأقدم للأحدث",
+                      style: const TextStyle(color: Colors.white38, fontSize: 11),
                     ),
                     value: settings.sortDescending,
                     onChanged: (val) => settings.setSortDescending(val),
@@ -477,197 +467,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildPremiumCard(BuildContext context, AuthProvider auth) {
-    bool isPremium = auth.isPremium;
-
-    return GestureDetector(
-      onTap: () => _showPremiumDialog(context, auth),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-            colors: isPremium
-                ? [const Color(0xFFFFD700), const Color(0xFFFFA500)]
-                : [const Color(0xFF2A2A2A), const Color(0xFF1A1A1A)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-              color: Colors.black.withOpacity(0.35),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.workspace_premium,
-                size: 34,
-                color: isPremium ? Colors.white : Colors.amber),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                isPremium
-                    ? "أنت عضو VIP 🎉"
-                    : "ترقية إلى Premium للحصول على مميزات إضافية",
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPremiumDialog(BuildContext context, AuthProvider auth) {
-    if (auth.user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("يرجى تسجيل الدخول أولاً")),
-      );
-      auth.signInWithGoogle();
-      return;
-    }
-
-    if (auth.isPremium) return;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 50,
-                height: 5,
-                decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              const SizedBox(height: 25),
-              const Icon(Icons.workspace_premium,
-                  size: 70, color: Colors.amber),
-              const SizedBox(height: 20),
-              const Text(
-                "كن عضواً مميزاً",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.amber.withOpacity(0.25),
-                      Colors.orange.withOpacity(0.15),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.amber.withOpacity(0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.local_offer_rounded,
-                        color: Colors.amber, size: 18),
-                    const SizedBox(width: 6),
-
-                    const Text(
-                      "(80 جنيه)",
-                      textDirection: TextDirection.ltr,
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    const SizedBox(width: 6),
-
-                    const Text(
-                      "/ 1.5\$ شهرياً",
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 30),
-              _buildFeatureItem(Icons.hd, "تحميل بجودة FHD 1080p"),
-              _buildFeatureItem(Icons.playlist_add_check,
-                  "تحميل المواسم كاملة بضغطة واحدة"),
-              _buildFeatureItem(Icons.speed, "سيرفرات خاصة وسريعة جداً"),
-              _buildFeatureItem(Icons.block, "تجربة خالية تماماً من الإعلانات"),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final Uri url = Uri.parse('https://t.me/M2HM00D');
-                    await launchUrl(url,
-                        mode: LaunchMode.externalApplication);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Text(
-                    "اشترك الآن عبر تيليجرام",
-                    style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFeatureItem(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: Colors.white10,
-                borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: Colors.amber, size: 22),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(color: Colors.white, fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildGoogleSignInButton(AuthProvider auth) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 5),
@@ -754,13 +553,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildDropdownTile({
     required BuildContext context,
-    required AuthProvider auth,
     required IconData icon,
     required String title,
     required String value,
     required List<String> items,
     required Function(String?) onChanged,
-    bool checkPremium = false,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -781,31 +578,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold),
               items: items.map((item) {
-                bool locked = checkPremium && item == "1080" && !auth.isPremium;
                 return DropdownMenuItem(
                   value: item,
                   child: Row(
                     children: [
                       Text("${item}p",
-                          style: TextStyle(
-                              color: locked ? Colors.grey : Colors.white)),
-                      if (locked)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.lock,
-                              size: 14, color: Colors.grey),
-                        )
+                          style: const TextStyle(color: Colors.white)),
                     ],
                   ),
                 );
               }).toList(),
-              onChanged: (val) {
-                if (checkPremium && val == "1080" && !auth.isPremium) {
-                  _showPremiumDialog(context, auth);
-                } else {
-                  onChanged(val);
-                }
-              },
+              onChanged: onChanged,
             ),
           )
         ],

@@ -1,4 +1,6 @@
 import 'package:cima_box/providers/auth_provider.dart';
+import 'package:cima_box/providers/chat_provider.dart';
+import 'package:cima_box/providers/comments_provider.dart';
 import 'package:cima_box/providers/downloads_provider.dart';
 import 'package:cima_box/services/cache_helper.dart';
 import 'package:cima_box/services/dynamic_scraper_service.dart';
@@ -63,6 +65,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => ActorProvider()),
+        ChangeNotifierProvider(create: (_) => CommentsProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
         Provider<DynamicScraperService>(
           create: (_) => DynamicScraperService()..init(),
           dispose: (_, service) => service.dispose(),

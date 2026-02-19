@@ -99,18 +99,6 @@ class SettingsProvider with ChangeNotifier {
   }
 
   void validatePremiumSettings(bool isPremium) {
-    if (!isPremium) {
-      bool hasChanged = false;
 
-      if (preferredDownloadQuality == '1080') {
-        preferredDownloadQuality = '720';
-        hasChanged = true;
-      }
-
-      if (hasChanged) {
-        notifyListeners();
-        _saveSettings();
-      }
-    }
   }
 }

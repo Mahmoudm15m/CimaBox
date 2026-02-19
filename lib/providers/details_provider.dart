@@ -25,6 +25,70 @@ class DetailsProvider with ChangeNotifier {
   final String _detailsUrl = 'https://ar.syria-live.fun/arb/details';
   final String _serversUrl = 'https://ar.syria-live.fun/arb/servers';
 
+  void showLoginDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 50, height: 5,
+                decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(10)),
+              ),
+              const SizedBox(height: 20),
+              const Icon(Icons.lock_person, size: 60, color: Colors.redAccent),
+              const SizedBox(height: 15),
+              const Text(
+                "تسجيل الدخول مطلوب",
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "يجب عليك تسجيل الدخول بحساب جوجل لتتمكن من المشاهدة أو التحميل.",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final auth = Provider.of<AuthProvider>(context, listen: false);
+                    await auth.signInWithGoogle();
+                  },
+                  icon: Image.network(
+                    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png",
+                    width: 24,
+                  ),
+                  label: const Text(
+                    "تسجيل الدخول",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> fetchDetails(int id, {bool sortDescending = true}) async {
     final String cacheKey = 'details_$id';
     var cachedData = CacheHelper.getData(cacheKey);
@@ -153,12 +217,18 @@ class DetailsProvider with ChangeNotifier {
     return null;
   }
 
-  Future<void> handleAction(BuildContext context, int contentId, {required bool isPlay, bool isEpisode = false, String? title, String? poster}) async {
+  Future<void> handleAction(BuildContext context, int contentId, {required bool isPlay, bool isEpisode = false, String? title, String? poster, bool isFromHistory = false}) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.user == null) {
+      showLoginDialog(context);
+      return;
+    }
+
     loadingAction = isPlay ? 'play' : 'download';
     notifyListeners();
 
     try {
-      if (details == null) {
+      if (!isFromHistory && details == null) {
         try {
           await fetchDetails(contentId);
         } catch (e) {}
@@ -172,7 +242,7 @@ class DetailsProvider with ChangeNotifier {
           final settings = Provider.of<SettingsProvider>(context, listen: false);
 
           if (isPlay) {
-            _autoPlay(context, qualities, settings.preferredWatchQuality, contentId, isEpisode, title, poster, settings.preferHlsWatching);
+            _autoPlay(context, qualities, settings.preferredWatchQuality, contentId, isEpisode, title, poster, settings.preferHlsWatching, isFromHistory);
           } else {
             _autoDownload(context, qualities, settings.preferredDownloadQuality, contentId, settings.preferHlsDownload);
           }
@@ -188,6 +258,83 @@ class DetailsProvider with ChangeNotifier {
     }
   }
 
+  Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster, bool preferHls, bool isFromHistory) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!auth.isPremium) {
+      await AdManager.showInterstitialAd(context);
+    }
+
+    List<String> priorities = _getPriorityList(prefQuality, auth.isPremium, isDownload: false);
+    String targetQuality = priorities.first;
+    bool foundWorking = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+    );
+
+    for (var q in priorities) {
+      if (qualities.containsKey(q)) {
+        var linkData = await fetchLinkForDownload(contentId, q, context, preferHls: preferHls);
+        if (linkData != null) {
+          targetQuality = q;
+          foundWorking = true;
+          break;
+        }
+      }
+    }
+
+    if (context.mounted) Navigator.pop(context);
+
+    if (!foundWorking) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("عذراً، لا توجد سيرفرات تعمل حالياً")));
+      return;
+    }
+
+    DetailsModel? finalDetails = isFromHistory ? null : details;
+    if (finalDetails == null && title != null) {
+      finalDetails = DetailsModel(
+        type: 'video',
+        title: title,
+        poster: poster ?? '',
+        story: '',
+        info: {},
+        seasons: [],
+        related: [],
+        collection: [],
+        cast: [],
+      );
+    }
+
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ListenableProvider.value(
+            value: this,
+            child: VideoPlayerScreen(
+              qualities: qualities,
+              startQuality: targetQuality,
+              detailsModel: finalDetails,
+              currentSeasonIndex: isFromHistory ? 0 : selectedSeasonIndex,
+              currentEpisodeIndex: isEpisode ? _getEpisodeIndex(contentId) : 0,
+              sourceId: contentId,
+            ),
+          ),
+        ),
+      );
+
+      if (targetQuality != prefQuality) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("تم التشغيل بجودة $targetQuality لعدم توفر $prefQuality"),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    }
+  }
+
   List<String> _getPriorityList(String preferred, bool isPremium, {bool isDownload = false}) {
     List<String> order;
     if (preferred == '1080') {
@@ -198,10 +345,6 @@ class DetailsProvider with ChangeNotifier {
       order = ['480', '360', '720', '240', '1080'];
     } else {
       order = ['360', '240', '480', '720', '1080'];
-    }
-
-    if (isDownload && !isPremium) {
-      order.remove('1080');
     }
 
     return order;
@@ -281,83 +424,6 @@ class DetailsProvider with ChangeNotifier {
     if (!started && context.mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("فشل استخراج رابط التحميل لجميع الجودات المتاحة")));
-    }
-  }
-
-  Future<void> _autoPlay(BuildContext context, Map<String, List<ServerItem>> qualities, String prefQuality, int contentId, bool isEpisode, String? title, String? poster, bool preferHls) async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-
-    if (!auth.isPremium) {
-      await AdManager.showInterstitialAd(context);
-    }
-
-    List<String> priorities = _getPriorityList(prefQuality, auth.isPremium, isDownload: false);
-    String targetQuality = priorities.first;
-    bool foundWorking = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
-    );
-
-    for (var q in priorities) {
-      if (qualities.containsKey(q)) {
-        var linkData = await fetchLinkForDownload(contentId, q, context, preferHls: preferHls);
-        if (linkData != null) {
-          targetQuality = q;
-          foundWorking = true;
-          break;
-        }
-      }
-    }
-
-    if (context.mounted) Navigator.pop(context);
-
-    if (!foundWorking) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("عذراً، لا توجد سيرفرات تعمل حالياً")));
-      return;
-    }
-
-    DetailsModel? finalDetails = details;
-    if (finalDetails == null && title != null) {
-      finalDetails = DetailsModel(
-        type: 'video',
-        title: title,
-        poster: poster ?? '',
-        story: '',
-        info: {},
-        seasons: [],
-        related: [],
-        collection: [],
-        cast: [],
-      );
-    }
-
-    if (context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ListenableProvider.value(
-            value: this,
-            child: VideoPlayerScreen(
-              qualities: qualities,
-              startQuality: targetQuality,
-              detailsModel: finalDetails,
-              currentSeasonIndex: selectedSeasonIndex,
-              currentEpisodeIndex: isEpisode ? _getEpisodeIndex(contentId) : 0,
-              sourceId: contentId,
-            ),
-          ),
-        ),
-      );
-
-      if (targetQuality != prefQuality) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("تم التشغيل بجودة $targetQuality لعدم توفر $prefQuality"),
-          duration: const Duration(seconds: 2),
-        ));
-      }
     }
   }
 

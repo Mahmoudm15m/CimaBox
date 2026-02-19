@@ -30,7 +30,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   bool _showUpdateUI = false;
   bool _splashVisible = true;
   Map<String, dynamic>? _updateData;
-  final int _currentVersion = 4;
+  final int _currentVersion = 5;
 
   final String textCima = "CIMA";
   final String textBox = "BOX";
